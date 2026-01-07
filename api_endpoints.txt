@@ -1,0 +1,84 @@
+API Endpoints for Postman Testing
+=================================
+
+Base URL: http://localhost:8000
+
+--------------------------------------------------------------------------------
+1. General
+--------------------------------------------------------------------------------
+
+Endpoint: /
+Method: GET
+Description: Root endpoint to check if server is running.
+Body: None
+
+Endpoint: /health
+Method: GET
+Description: Health check to ensure API is operational.
+Body: None
+
+--------------------------------------------------------------------------------
+2. Policies
+--------------------------------------------------------------------------------
+
+Endpoint: /policies/
+Method: POST
+Description: Create a new IPsec policy.
+Body (JSON):
+{
+    "name": "Headquarters-Policy",
+    "description": "Policy for HQ devices",
+    "ike_version": "ikev2",
+    "encryption_algorithm": "aes256",
+    "integrity_algorithm": "sha256",
+    "dh_group": "modp2048",
+    "local_network_cidr": "10.0.0.0/24",
+    "remote_network_cidr": "192.168.1.0/24",
+    "auth_method": "psk",
+    "psk_secret": "SuperSecretKey123!"
+}
+
+Endpoint: /policies/
+Method: GET
+Description: List all created policies.
+Body: None
+
+Endpoint: /policies/{policy_id}
+Method: GET
+Description: Get details of a specific policy. Replace {policy_id} with the actual ID (e.g., 1).
+Body: None
+
+Endpoint: /policies/{policy_id}/assign/{device_id}
+Method: POST
+Description: Assign a policy to a device. Replace {policy_id} and {device_id} with actual integers.
+Body: None
+
+--------------------------------------------------------------------------------
+3. Devices
+--------------------------------------------------------------------------------
+
+Endpoint: /devices/enroll
+Method: POST
+Description: Enroll a new device or update an existing one.
+Body (JSON):
+{
+    "hostname": "ubuntu-client-01",
+    "os_type": "linux",
+    "public_ip": "203.0.113.10",
+    "enrollment_token": "unique-token-abc-123"
+}
+
+Endpoint: /devices/
+Method: GET
+Description: List all enrolled devices.
+Body: None
+
+Endpoint: /devices/{device_id}
+Method: GET
+Description: Get details of a specific device. Replace {device_id} with the actual ID.
+Body: None
+
+Endpoint: /devices/{device_id}/config
+Method: GET
+Description: Get the assigned policy configuration for a device.
+Body: None
