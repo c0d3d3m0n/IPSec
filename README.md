@@ -20,21 +20,22 @@ This project solves the problem of inconsistent IPsec management by providing a 
 ```mermaid
 graph TD
     subgraph Server
-    Orchestrator[Python Orchestrator (FastAPI)]
-    DB[(Database)]
-    Orchestrator --> DB
+        Orchestrator[Python Orchestrator<br/>FastAPI]
+        DB[(Database)]
+        Orchestrator --> DB
     end
 
     subgraph Clients
-    WinAgent[Windows Agent]
-    LinAgent[Linux Agent]
+        WinAgent[Windows Agent]
+        LinAgent[Linux Agent]
     end
 
-    Orchestrator -- REST API (JSON) --> WinAgent
-    Orchestrator -- REST API (JSON) --> LinAgent
+    Orchestrator -- REST API JSON --> WinAgent
+    Orchestrator -- REST API JSON --> LinAgent
 
     WinAgent -- PowerShell --> WinIPsec[Windows IPsec Stack]
     LinAgent -- ipsec.conf --> StrongSwan[strongSwan Daemon]
+
 ```
 
 ## 🚀 Getting Started
