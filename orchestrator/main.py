@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
-from routers import devices, policies
+from orchestrator.database import engine, Base
+from orchestrator.routers import devices, policies
 
 # Create tables
 Base.metadata.create_all(bind=engine)
