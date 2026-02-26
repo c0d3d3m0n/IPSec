@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+
+# Databases
+*.db
+*.sqlite3
+
+# Git
+.git/
+.gitignore
+
+# Project docs and synopses
+*.docx
+*.md
+TEST_PLAN.md
+README.md
+
+# Agent code (Web service only needs orchestrator)
+agent/
+shared/
+api_test_suite.py
+test_scenario.*
+cleanup.ps1
+generate_synopsis.py

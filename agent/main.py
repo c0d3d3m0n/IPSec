@@ -2,8 +2,8 @@ import time
 import logging
 import sys
 import os
-from .client import OrchestratorClient
-from .platforms.base import PlatformManager
+from client import OrchestratorClient
+from platforms.base import PlatformManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
