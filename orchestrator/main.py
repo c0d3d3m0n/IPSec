@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from orchestrator.database import engine, Base
-from orchestrator.routers import devices, policies
+from orchestrator.routers import devices, policies, auth
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -21,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(devices.router)
 app.include_router(policies.router)
 

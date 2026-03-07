@@ -9,42 +9,76 @@ router = APIRouter(
     tags=["devices"]
 )
 
+from ..auth import get_current_active_user
+
 @router.post("/enroll", response_model=schemas.Device)
 def enroll_device(device: schemas.DeviceCreate, db: Session = Depends(database.get_db)):
-    # Check if token is valid (In real app, validate against a pre-generated list)
-    # For now, we just check if a device with this token already exists, if so return it
+    # 1. Look for pre-registered device with this number and token
+    db_device = db.query(models.Device).filter(
+        models.Device.enrollment_number == device.enrollment_number,
+        models.Device.enrollment_token == device.enrollment_token
+    ).first()
     
-    db_device = db.query(models.Device).filter(models.Device.enrollment_token == device.enrollment_token).first()
-    if db_device:
-        # Update existing device info
-        db_device.hostname = device.hostname
-        db_device.os_type = device.os_type
-        db_device.public_ip = device.public_ip
-        db_device.last_seen = datetime.utcnow()
-        db.commit()
-        db.refresh(db_device)
-        return db_device
+    if not db_device:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid enrollment credentials. Please contact your administrator."
+        )
     
-    # Create new device
+    if db_device.status == "REVOKED":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This enrollment has been revoked."
+        )
+
+    # 2. Update device info and activate
+    db_device.hostname = device.hostname
+    db_device.os_type = device.os_type
+    db_device.public_ip = device.public_ip
+    db_device.status = "ACTIVE"
+    db_device.last_seen = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(db_device)
+    return db_device
+
+@router.get("/", response_model=List[schemas.Device])
+def read_devices(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    devices = db.query(models.Device).offset(skip).limit(limit).all()
+    return devices
+
+@router.post("/register", response_model=schemas.Device)
+def register_device(
+    device: schemas.DeviceAdminCreate, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Admin endpoint to pre-register a device."""
+    existing = db.query(models.Device).filter(models.Device.enrollment_number == device.enrollment_number).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Enrollment number already exists")
+        
     new_device = models.Device(
-        hostname=device.hostname,
-        os_type=device.os_type,
-        public_ip=device.public_ip,
+        enrollment_number=device.enrollment_number,
         enrollment_token=device.enrollment_token,
-        last_seen=datetime.utcnow()
+        status="PENDING"
     )
     db.add(new_device)
     db.commit()
     db.refresh(new_device)
     return new_device
 
-@router.get("/", response_model=List[schemas.Device])
-def read_devices(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
-    devices = db.query(models.Device).offset(skip).limit(limit).all()
-    return devices
-
 @router.get("/{device_id}", response_model=schemas.Device)
-def read_device(device_id: int, db: Session = Depends(database.get_db)):
+def read_device(
+    device_id: int, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -56,6 +90,9 @@ def get_device_config(device_id: int, db: Session = Depends(database.get_db)):
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     
+    if device.status != "ACTIVE":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device enrollment is not active")
+
     if not device.policy:
         raise HTTPException(status_code=404, detail="No policy assigned to this device")
         

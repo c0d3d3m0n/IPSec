@@ -2,6 +2,7 @@ import time
 import logging
 import sys
 import os
+import getpass
 from client import OrchestratorClient
 from platforms.base import PlatformManager
 
@@ -20,9 +21,8 @@ class MockPlatform(PlatformManager):
 
 def get_platform_manager() -> PlatformManager:
     if sys.platform == "linux":
-        # from .platforms.linux import LinuxManager
-        # return LinuxManager()
-        return MockPlatform() # Placeholder
+        from .platforms.linux import LinuxManager
+        return LinuxManager()
     elif sys.platform == "win32":
         from .platforms.windows import WindowsManager
         return WindowsManager()
@@ -32,16 +32,27 @@ def get_platform_manager() -> PlatformManager:
         return MockPlatform()
 
 def main():
-    orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "http://127.0.0.1:8000")
-    enrollment_token = os.environ.get("ENROLLMENT_TOKEN", "default_token")
+    # Hardcoded Orchestrator URL as requested by user
+    default_url = "https://ipsec-lcir.onrender.com"
+    orchestrator_url = os.environ.get("ORCHESTRATOR_URL", default_url)
     
+    enrollment_token = os.environ.get("ENROLLMENT_TOKEN")
+    
+    if not enrollment_token:
+        print(f"Connecting to: {orchestrator_url}")
+        enrollment_token = getpass.getpass("Enter Secret Enrollment Token: ")
+    
+    enrollment_number = os.environ.get("ENROLLMENT_NUMBER")
+    if not enrollment_number:
+        enrollment_number = input("Enter Enrollment Number: ")
+
     client = OrchestratorClient(orchestrator_url, enrollment_token)
     platform_mgr = get_platform_manager()
     
-    logger.info("Starting Agent...")
+    logger.info(f"Starting Agent for Device #{enrollment_number}...")
     
     # 1. Enroll
-    if not client.enroll():
+    if not client.enroll(enrollment_number):
         logger.error("Failed to enroll. Exiting.")
         return
 

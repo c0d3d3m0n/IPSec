@@ -26,21 +26,53 @@ class Policy(PolicyBase):
     class Config:
         from_attributes = True
 
+# User & Auth Schemas
+class UserBase(BaseModel):
+    username: str
+
+class UserCreate(UserBase):
+    password: str
+
+class User(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
 # Device Schemas
 class DeviceBase(BaseModel):
-    hostname: str
-    os_type: str
+    hostname: Optional[str] = None
+    os_type: Optional[str] = None
     public_ip: Optional[str] = None
 
 class DeviceCreate(DeviceBase):
+    enrollment_number: str
+    enrollment_token: str
+
+class DeviceAdminCreate(BaseModel):
+    enrollment_number: str
     enrollment_token: str
 
 class DeviceUpdate(BaseModel):
     public_ip: Optional[str] = None
     is_active: Optional[bool] = None
+    status: Optional[str] = None
 
 class Device(DeviceBase):
     id: int
+    enrollment_number: str
+    enrollment_token: str
+    status: str
     is_active: bool
     last_seen: Optional[datetime] = None
     policy_id: Optional[int] = None

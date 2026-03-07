@@ -14,7 +14,7 @@ class OrchestratorClient:
         self.device_id: Optional[int] = None
         self.session = requests.Session()
 
-    def enroll(self) -> bool:
+    def enroll(self, enrollment_number: str) -> bool:
         """Register the device with the orchestrator."""
         hostname = socket.gethostname()
         os_type = platform.system().lower()
@@ -29,6 +29,7 @@ class OrchestratorClient:
             "hostname": hostname,
             "os_type": os_type,
             "public_ip": public_ip,
+            "enrollment_number": enrollment_number,
             "enrollment_token": self.enrollment_token
         }
 
@@ -37,7 +38,7 @@ class OrchestratorClient:
             response.raise_for_status()
             data = response.json()
             self.device_id = data['id']
-            logger.info(f"Device enrolled successfully. ID: {self.device_id}")
+            logger.info(f"Device enrolled successfully (Number: {enrollment_number}). ID: {self.device_id}")
             return True
         except Exception as e:
             logger.error(f"Enrollment failed: {e}")

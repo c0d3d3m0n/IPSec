@@ -18,3 +18,15 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Keys & Secrets (SENSITIVE)
+keys/
+.env*
+
+# Node
+node_modules/
+dist/
+build/
+.vercel
+/orchestrator/frontend/node_modules/
+/orchestrator/frontend/dist/
