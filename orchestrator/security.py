@@ -12,11 +12,32 @@ PRIVATE_KEY_PATH = "keys/private_key.pem"
 PUBLIC_KEY_PATH = "keys/public_key.pem"
 
 def load_keys():
-    with open(PRIVATE_KEY_PATH, "r") as f:
-        private_key = f.read()
-    with open(PUBLIC_KEY_PATH, "r") as f:
-        public_key = f.read()
-    return private_key, public_key
+    # Priority 1: Environment Variables (Production)
+    private_key = os.getenv("RSA_PRIVATE_KEY")
+    public_key = os.getenv("RSA_PUBLIC_KEY")
+    
+    if private_key and public_key:
+        return private_key.replace("\\n", "\n"), public_key.replace("\\n", "\n")
+        
+    # Priority 2: Local Files (Development)
+    try:
+        if os.path.exists(PRIVATE_KEY_PATH):
+            with open(PRIVATE_KEY_PATH, "r") as f:
+                private_key = f.read()
+        if os.path.exists(PUBLIC_KEY_PATH):
+            with open(PUBLIC_KEY_PATH, "r") as f:
+                public_key = f.read()
+        
+        if private_key and public_key:
+            return private_key, public_key
+    except Exception as e:
+        print(f"Error loading keys from files: {e}")
+
+    # Fallback/Error
+    raise RuntimeError(
+        "RSA keys not found! Please set RSA_PRIVATE_KEY/RSA_PUBLIC_KEY env vars "
+        "or ensure keys/ exist locally."
+    )
 
 PRIVATE_KEY, PUBLIC_KEY = load_keys()
 ALGORITHM = "RS512"
