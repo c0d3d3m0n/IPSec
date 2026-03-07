@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # CA Settings
-    CA_CERT_PATH: str = "ca_cert.pem"
-    CA_KEY_PATH: str = "ca_key.pem"
+    # Admin Credentials
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123"
 
     class Config:
         env_file = ".env"

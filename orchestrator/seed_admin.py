@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from orchestrator.database import SessionLocal, engine, Base
 from orchestrator import models, security
+from orchestrator.config import get_settings
 import sys
 
 def seed_admin(username, password):
@@ -12,7 +13,10 @@ def seed_admin(username, password):
         # Check if user already exists
         existing_user = db.query(models.User).filter(models.User.username == username).first()
         if existing_user:
-            print(f"User {username} already exists.")
+            existing_user.hashed_password = security.get_password_hash(password)
+            existing_user.is_admin = True
+            db.commit()
+            print(f"User {username} already exists. Password updated.")
             return
 
         # Create new admin user
@@ -33,7 +37,8 @@ def seed_admin(username, password):
         db.close()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python orchestrator/seed_admin.py <username> <password>")
-    else:
+    settings = get_settings()
+    if len(sys.argv) == 3:
         seed_admin(sys.argv[1], sys.argv[2])
+    else:
+        seed_admin(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
