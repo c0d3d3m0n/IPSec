@@ -19,7 +19,10 @@ function Login({ onLogin }) {
       params.append('password', password);
 
       const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      const response = await axios.post(`${apiBaseUrl}/api/auth/login`, params, {
+      const loginUrl = `${apiBaseUrl}/api/auth/login`;
+      console.log('Attempting login at:', loginUrl);
+      
+      const response = await axios.post(loginUrl, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
