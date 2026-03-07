@@ -5,47 +5,85 @@ from .base import PlatformManager
 
 logger = logging.getLogger(__name__)
 
+import ctypes
+
 class WindowsManager(PlatformManager):
+    def is_admin(self) -> bool:
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except AttributeError:
+            return False
+
+    def _map_crypto(self, algo: str) -> str:
+        mapping = {
+            'aes256': 'AES256',
+            'aes128': 'AES128',
+            'sha256': 'SHA256',
+            'sha1': 'SHA1',
+            'modp2048': 'DH14',
+            'modp1024': 'DH2',
+            'modp3072': 'DH15',
+            'ecp256': 'ECDHP256'
+        }
+        return mapping.get(algo.lower(), algo.upper())
+
     def apply_policy(self, policy: Dict[str, Any]) -> bool:
-        logger.info(f"Applying Windows IPsec policy: {policy['name']}")
+        if not self.is_admin():
+            logger.error("Administrator privileges are required to apply Windows IPsec policies.")
+            logger.error("Please run the agent in a PowerShell window started with 'Run as Administrator'.")
+            return False
+
+        logger.info(f"Applying Detailed Windows IPsec policy: {policy['name']}")
         
-        # PowerShell script to apply IPsec rule
-        # This is a simplified example. Real implementation needs robust error handling and parameter mapping.
-        
+        name = policy['name'].replace(" ", "_")
         local_net = policy.get('local_network_cidr', '0.0.0.0/0')
         remote_net = policy.get('remote_network_cidr', '0.0.0.0/0')
-        auth_method = "PSK" if policy.get('auth_method') == 'psk' else "Certificate"
+        psk = policy.get('psk_secret', '')
         
-        # Note: New-NetIPsecRule is complex. We'll use a wrapper script or direct command.
-        # For this MVP, we'll construct a command string.
-        
+        enc = self._map_crypto(policy.get('encryption_algorithm', 'aes256'))
+        integ = self._map_crypto(policy.get('integrity_algorithm', 'sha256'))
+        dh = self._map_crypto(policy.get('dh_group', 'modp2048'))
+
         ps_command = f"""
         $ErrorActionPreference = "Stop"
         
-        # Remove existing rule if exists
+        # 1. Cleanup existing objects with this prefix
         Remove-NetIPsecRule -DisplayName "{policy['name']}" -ErrorAction SilentlyContinue
-        
-        # Create new rule
+        Remove-NetIPsecMainModeCryptoSet -Name "{name}_MM_Set" -ErrorAction SilentlyContinue
+        Remove-NetIPsecQuickModeCryptoSet -Name "{name}_QM_Set" -ErrorAction SilentlyContinue
+        Remove-NetIPsecPhase1AuthSet -Name "{name}_Auth_Set" -ErrorAction SilentlyContinue
+
+        # 2. Define Main Mode (Phase 1)
+        $mmProposal = New-NetIPsecMainModeCryptoProposal -Encryption {enc} -Hash {integ} -KeyExchange {dh}
+        $mmSet = New-NetIPsecMainModeCryptoSet -Name "{name}_MM_Set" -Proposal $mmProposal
+
+        # 3. Define Auth Set (PSK)
+        $authSet = New-NetIPsecPhase1AuthSet -Name "{name}_Auth_Set" -PresharedKey "{psk}"
+
+        # 4. Define Quick Mode (Phase 2)
+        $qmProposal = New-NetIPsecQuickModeCryptoProposal -Encryption {enc} -Hash {integ}
+        $qmSet = New-NetIPsecQuickModeCryptoSet -Name "{name}_QM_Set" -Proposal $qmProposal
+
+        # 5. Create the Final Rule
         New-NetIPsecRule -DisplayName "{policy['name']}" `
             -LocalAddress {local_net} `
             -RemoteAddress {remote_net} `
-            -Phase1AuthSet DefaultPhase1AuthSet `
-            -Phase2AuthSet DefaultPhase2AuthSet `
+            -Phase1AuthSet "{name}_Auth_Set" `
+            -MainModeCryptoSet "{name}_MM_Set" `
+            -QuickModeCryptoSet "{name}_QM_Set" `
             -KeyModule IKEv2 `
+            -InboundSecurity Require `
+            -OutboundSecurity Require `
             -Enabled True
         """
         
-        if policy.get('auth_method') == 'psk':
-            # Windows IPsec with PSK usually requires specific setup or machine key.
-            # This is a placeholder for the actual PSK logic which might involve 'netsh' or advanced PS.
-            logger.warning("PSK authentication on Windows via PowerShell requires advanced configuration.")
-            
         try:
-            subprocess.run(["powershell", "-Command", ps_command], check=True)
-            logger.info("Windows IPsec rule applied successfully.")
+            # We use subprocess.run with input to avoid potential encoding issues with multiline strings
+            process = subprocess.run(["powershell", "-Command", "-"], input=ps_command, capture_output=True, text=True, check=True)
+            logger.info(f"Detailed IPsec rule '{policy['name']}' applied successfully.")
             return True
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to apply Windows policy: {e}")
+            logger.error(f"Failed to apply Windows policy: {e.stderr}")
             return False
 
     def check_tunnel_status(self) -> bool:

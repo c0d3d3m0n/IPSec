@@ -14,9 +14,12 @@ from ..auth import get_current_active_user
 @router.post("/enroll", response_model=schemas.Device)
 def enroll_device(device: schemas.DeviceCreate, db: Session = Depends(database.get_db)):
     # 1. Look for pre-registered device with this number and token
+    clean_no = device.enrollment_number.strip()
+    clean_token = device.enrollment_token.strip()
+    
     db_device = db.query(models.Device).filter(
-        models.Device.enrollment_number == device.enrollment_number,
-        models.Device.enrollment_token == device.enrollment_token
+        models.Device.enrollment_number == clean_no,
+        models.Device.enrollment_token == clean_token
     ).first()
     
     if not db_device:
@@ -94,6 +97,14 @@ def get_device_config(device_id: int, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device enrollment is not active")
 
     if not device.policy:
+        # Update last_seen even if no policy, to act as heartbeat
+        device.last_seen = datetime.utcnow()
+        db.commit()
         raise HTTPException(status_code=404, detail="No policy assigned to this device")
         
+    # Update last_seen on every config poll (heartbeat)
+    device.last_seen = datetime.utcnow()
+    db.commit()
+    db.refresh(device)
+    
     return device.policy

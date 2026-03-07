@@ -1,87 +1,100 @@
-import os
 import subprocess
 import logging
+import os
 from typing import Dict, Any
 from .base import PlatformManager
 
 logger = logging.getLogger(__name__)
 
 class LinuxManager(PlatformManager):
-    def __init__(self):
-        self.conf_path = "/etc/ipsec.conf"
-        self.secrets_path = "/etc/ipsec.secrets"
+    def is_admin(self) -> bool:
+        return os.geteuid() == 0
+
+    def _map_crypto(self, algo: str) -> str:
+        mapping = {
+            'aes256': 'aes256',
+            'aes128': 'aes128',
+            'sha256': 'sha256',
+            'sha1': 'sha1',
+            'modp2048': 'modp2048',
+            'modp1024': 'modp1024',
+            'modp3072': 'modp3072',
+            'ecp256': 'ecp256'
+        }
+        return mapping.get(algo.lower(), algo.lower())
 
     def apply_policy(self, policy: Dict[str, Any]) -> bool:
-        logger.info(f"Generating strongSwan config for policy: {policy['name']}")
+        if not self.is_admin():
+            logger.error("Root privileges are required to apply Linux IPsec policies.")
+            logger.error("Please run the agent with 'sudo'.")
+            return False
+
+        logger.info(f"Applying Enterprise Linux IPsec policy: {policy['name']}")
         
-        # Generate ipsec.conf content
-        conf_content = self._generate_ipsec_conf(policy)
+        name = policy['name'].replace(" ", "_")
+        local_ts = policy.get('local_network_cidr', '0.0.0.0/0')
+        remote_ts = policy.get('remote_network_cidr', '0.0.0.0/0')
+        psk = policy.get('psk_secret', '')
         
-        # Generate ipsec.secrets content
-        secrets_content = self._generate_ipsec_secrets(policy)
+        enc = self._map_crypto(policy.get('encryption_algorithm', 'aes256'))
+        integ = self._map_crypto(policy.get('integrity_algorithm', 'sha256'))
+        dh = self._map_crypto(policy.get('dh_group', 'modp2048'))
+        
+        proposal = f"{enc}-{integ}-{dh}"
+
+        # 1. Create swanctl configuration
+        conf_content = f"""
+connections {{
+    {name} {{
+        local_addrs  = %any
+        remote_addrs = %any
+        local {{
+            auth = psk
+            id = %any
+        }}
+        remote {{
+            auth = psk
+            id = %any
+        }}
+        children {{
+            {name} {{
+                local_ts  = {local_ts}
+                remote_ts = {remote_ts}
+                esp_proposals = {enc}-{integ}
+                mode = transport
+                start_action = trap
+            }}
+        }}
+        proposals = {proposal}
+    }}
+}}
+
+secrets {{
+    ike-{name} {{
+        secret = {psk}
+    }}
+}}
+"""
+        conf_path = f"/etc/swanctl/conf.d/{name}.conf"
         
         try:
-            # Write files (Requires root)
-            # In a real scenario, we'd handle permissions carefully
-            with open(self.conf_path, 'w') as f:
+            # Ensure directory exists
+            os.makedirs("/etc/swanctl/conf.d", exist_ok=True)
+            
+            with open(conf_path, "w") as f:
                 f.write(conf_content)
             
-            with open(self.secrets_path, 'w') as f:
-                f.write(secrets_content)
-                
-            # Reload strongSwan
-            subprocess.run(["ipsec", "restart"], check=True)
-            logger.info("strongSwan restarted successfully.")
+            # 2. Reload swanctl
+            subprocess.run(["swanctl", "--reload"], check=True, capture_output=True)
+            logger.info(f"Linux IPsec rule '{policy['name']}' applied via swanctl.")
             return True
-        except PermissionError:
-            logger.error("Permission denied. Run as root.")
-            return False
         except Exception as e:
-            logger.error(f"Failed to apply Linux policy: {e}")
+            logger.error(f"Failed to apply Linux policy: {str(e)}")
             return False
 
     def check_tunnel_status(self) -> bool:
         try:
-            result = subprocess.run(["ipsec", "status"], capture_output=True, text=True)
-            return "ESTABLISHED" in result.stdout
-        except FileNotFoundError:
-            logger.error("strongSwan (ipsec) command not found.")
+            result = subprocess.run(["swanctl", "--list-sas"], capture_output=True, text=True)
+            return name in result.stdout # Simplified check
+        except Exception:
             return False
-
-    def _generate_ipsec_conf(self, policy: Dict[str, Any]) -> str:
-        # Map API fields to strongSwan config
-        # This is a simplified template
-        
-        left = "%defaultroute"
-        leftsubnet = policy.get('local_network_cidr', '0.0.0.0/0')
-        right = policy.get('remote_gateway', '%any') # Needs to be passed in policy or discovered
-        rightsubnet = policy.get('remote_network_cidr', '0.0.0.0/0')
-        
-        ike = f"{policy.get('encryption_algorithm', 'aes256')}-{policy.get('integrity_algorithm', 'sha256')}-{policy.get('dh_group', 'modp2048')}!"
-        esp = f"{policy.get('encryption_algorithm', 'aes256')}-{policy.get('integrity_algorithm', 'sha256')}!"
-        
-        config = f"""# Generated by Unified IPsec Agent
-config setup
-    charondebug="ike 1, knl 1, cfg 0"
-    uniqueids=no
-
-conn {policy['name']}
-    authby={policy.get('auth_method', 'secret')}
-    auto=start
-    keyexchange={policy.get('ike_version', 'ikev2')}
-    ike={ike}
-    esp={esp}
-    left={left}
-    leftsubnet={leftsubnet}
-    right={right}
-    rightsubnet={rightsubnet}
-    type=tunnel
-"""
-        return config
-
-    def _generate_ipsec_secrets(self, policy: Dict[str, Any]) -> str:
-        if policy.get('auth_method') == 'psk':
-            psk = policy.get('psk_secret', 'default_psk')
-            # Format: left_id right_id : PSK "secret"
-            return f': PSK "{psk}"\n'
-        return ""

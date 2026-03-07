@@ -21,10 +21,10 @@ class MockPlatform(PlatformManager):
 
 def get_platform_manager() -> PlatformManager:
     if sys.platform == "linux":
-        from .platforms.linux import LinuxManager
+        from platforms.linux import LinuxManager
         return LinuxManager()
     elif sys.platform == "win32":
-        from .platforms.windows import WindowsManager
+        from platforms.windows import WindowsManager
         return WindowsManager()
         # return MockPlatform() # Placeholder
     else:

@@ -14,12 +14,16 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('username', username);
-      formData.append('password', password);
+      const params = new URLSearchParams();
+      params.append('username', username);
+      params.append('password', password);
 
       const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      const response = await axios.post(`${apiBaseUrl}/api/auth/login`, formData);
+      const response = await axios.post(`${apiBaseUrl}/api/auth/login`, params, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
       onLogin(response.data.access_token);
     } catch (err) {
       setError(err.response?.data?.detail || 'Authentication failed');
