@@ -1,7 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from orchestrator.database import engine, Base
 from orchestrator.routers import devices, policies, auth
+from orchestrator.seed_admin import seed_admin as run_seed
+from orchestrator.config import get_settings
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    try:
+        run_seed(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
+    except Exception as e:
+        print(f"Auto-seeding failed: {e}")
+    yield
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -9,7 +21,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Unified IPsec Orchestrator",
     description="Central management server for cross-platform IPsec tunnels",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # CORS (Allow all for now, restrict in production)
