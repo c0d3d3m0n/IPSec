@@ -20,14 +20,8 @@ function Dashboard({ onLogout }) {
   const [enrollNo, setEnrollNo] = useState('');
   const [enrollToken, setEnrollToken] = useState('');
 
-  // Policy Form
-  const [policyForm, setPolicyForm] = useState({
-    name: '',
-    description: '',
-    local_network_cidr: '',
-    remote_network_cidr: '',
-    psk_secret: ''
-  });
+  // JSON Upload State
+  const [uploadFile, setUploadFile] = useState(null);
 
   const token = localStorage.getItem('token');
   const apiBaseUrl = import.meta.env.VITE_API_URL || ''; 
@@ -72,15 +66,23 @@ function Dashboard({ onLogout }) {
     }
   };
 
-  const handleCreatePolicy = async (e) => {
+  const handleUploadJson = async (e) => {
     e.preventDefault();
+    if (!uploadFile) return;
+
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+
     try {
-      await api.post('/policies/', policyForm);
+      const resp = await api.post('/policies/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert(resp.data.message);
       setShowPolicyModal(false);
-      setPolicyForm({ name: '', description: '', local_network_cidr: '', remote_network_cidr: '', psk_secret: '' });
+      setUploadFile(null);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Policy creation failed');
+      alert(err.response?.data?.detail || 'Policy upload failed');
     }
   };
 
@@ -304,7 +306,7 @@ function Dashboard({ onLogout }) {
               </div>
               <button onClick={() => setShowPolicyModal(true)} className="btn btn-primary">
                 <Plus size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                Create New Policy
+                Upload Policies JSON
               </button>
             </div>
 
@@ -374,31 +376,27 @@ function Dashboard({ onLogout }) {
         </div>
       )}
 
-      {/* Policy Modal */}
+      {/* Policy JSON Upload Modal */}
       {showPolicyModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <div className="glass-card" style={{ padding: '2.5rem', width: '100%', maxWidth: '500px', background: '#0f172a' }}>
-            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Create IPsec Policy</h2>
-            <form onSubmit={handleCreatePolicy} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Policy Name</label>
-                <input className="input-field" value={policyForm.name} onChange={e => setPolicyForm({...policyForm, name: e.target.value})} placeholder="e.g. Office VPN" required />
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Upload Policies</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Upload a JSON file containing the policies and their device assignments.
+            </p>
+            <form onSubmit={handleUploadJson} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <input 
+                  type="file" 
+                  accept=".json,application/json"
+                  className="input-field" 
+                  onChange={e => setUploadFile(e.target.files[0])} 
+                  required 
+                />
               </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Local Network CIDR</label>
-                <input className="input-field" value={policyForm.local_network_cidr} onChange={e => setPolicyForm({...policyForm, local_network_cidr: e.target.value})} placeholder="10.1.0.0/16" required />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Remote Network CIDR</label>
-                <input className="input-field" value={policyForm.remote_network_cidr} onChange={e => setPolicyForm({...policyForm, remote_network_cidr: e.target.value})} placeholder="10.2.0.0/16" required />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>PSK Secret</label>
-                <input className="input-field" type="password" value={policyForm.psk_secret} onChange={e => setPolicyForm({...policyForm, psk_secret: e.target.value})} required />
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', gridColumn: 'span 2' }}>
-                <button type="button" onClick={() => setShowPolicyModal(false)} className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Policy</button>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => {setShowPolicyModal(false); setUploadFile(null);}} className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Upload JSON</button>
               </div>
             </form>
           </div>

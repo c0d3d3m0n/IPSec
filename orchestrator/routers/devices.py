@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+import json
 from .. import models, schemas, database
 from datetime import datetime
 
@@ -87,7 +88,7 @@ def read_device(
         raise HTTPException(status_code=404, detail="Device not found")
     return device
 
-@router.get("/{device_id}/config", response_model=schemas.Policy)
+@router.get("/{device_id}/config", response_model=schemas.PolicyResponse)
 def get_device_config(device_id: int, db: Session = Depends(database.get_db)):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
@@ -107,4 +108,7 @@ def get_device_config(device_id: int, db: Session = Depends(database.get_db)):
     db.commit()
     db.refresh(device)
     
-    return device.policy
+    policy = device.policy
+    policy.config_data = json.loads(policy.config_data)
+    
+    return policy

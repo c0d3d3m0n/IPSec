@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
+import json
 from .. import models, schemas, database
 
 router = APIRouter(
@@ -10,23 +11,66 @@ router = APIRouter(
 
 from ..auth import get_current_active_user
 
-@router.post("/", response_model=schemas.Policy)
+@router.post("/", response_model=schemas.PolicyResponse)
 def create_policy(
-    policy: schemas.PolicyCreate, 
+    policy: schemas.UnifiedPolicyCreate, 
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    db_policy = db.query(models.Policy).filter(models.Policy.name == policy.name).first()
+    db_policy = db.query(models.Policy).filter(models.Policy.name == policy.policy_id).first()
     if db_policy:
         raise HTTPException(status_code=400, detail="Policy with this name already exists")
     
-    new_policy = models.Policy(**policy.model_dump())
+    new_policy = models.Policy(
+        name=policy.policy_id,
+        description=policy.description,
+        config_data=policy.model_dump_json()
+    )
     db.add(new_policy)
     db.commit()
     db.refresh(new_policy)
     return new_policy
 
-@router.get("/", response_model=List[schemas.Policy])
+@router.post("/upload", response_model=dict)
+def upload_policies(
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    try:
+        content = file.file.read()
+        data = json.loads(content)
+        # Assuming either it's an array or wrapped in a 'policies' key
+        if "policies" in data:
+            bulk_upload = schemas.PolicyBulkUpload(**data)
+        else:
+            bulk_upload = schemas.PolicyBulkUpload(policies=[data])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format or schema: {e}")
+    
+    assigned_count = 0
+    created_count = 0
+
+    for policy_item in bulk_upload.policies:
+        # Check if policy exists
+        db_policy = db.query(models.Policy).filter(models.Policy.name == policy_item.policy_id).first()
+        if not db_policy:
+            # Create the policy
+            db_policy = models.Policy(
+                name=policy_item.policy_id,
+                description=policy_item.description,
+                config_data=policy_item.model_dump_json()
+            )
+            db.add(db_policy)
+            db.commit()
+            db.refresh(db_policy)
+            created_count += 1
+            
+        # Optional: Auto-assign logic based on target OS if needed (skipping for now, use UI or assignments)
+
+    return {"message": f"Successfully processed JSON upload. Created {created_count} policies."}
+
+@router.get("/", response_model=List[schemas.PolicyResponse])
 def read_policies(
     skip: int = 0, 
     limit: int = 100, 
@@ -34,13 +78,16 @@ def read_policies(
     current_user: models.User = Depends(get_current_active_user)
 ):
     policies = db.query(models.Policy).offset(skip).limit(limit).all()
+    for p in policies:
+        p.config_data = json.loads(p.config_data)  # Parse string back to dict for the API response
     return policies
 
-@router.get("/{policy_id}", response_model=schemas.Policy)
+@router.get("/{policy_id}", response_model=schemas.PolicyResponse)
 def read_policy(policy_id: int, db: Session = Depends(database.get_db)):
     policy = db.query(models.Policy).filter(models.Policy.id == policy_id).first()
     if policy is None:
         raise HTTPException(status_code=404, detail="Policy not found")
+    policy.config_data = json.loads(policy.config_data)
     return policy
 
 @router.post("/{policy_id}/assign/{device_id}")

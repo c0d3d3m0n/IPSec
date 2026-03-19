@@ -29,16 +29,22 @@ class LinuxManager(PlatformManager):
             logger.error("Please run the agent with 'sudo'.")
             return False
 
-        logger.info(f"Applying Enterprise Linux IPsec policy: {policy['name']}")
+        config = policy.get('config_data', {})
+        ipsec = config.get('ipsec_policy', {})
+        conn = ipsec.get('connections', [{}])[0] if ipsec.get('connections') else {}
         
-        name = policy['name'].replace(" ", "_")
-        local_ts = policy.get('local_network_cidr', '0.0.0.0/0')
-        remote_ts = policy.get('remote_network_cidr', '0.0.0.0/0')
-        psk = policy.get('psk_secret', '')
+        logger.info(f"Applying Enterprise Linux IPsec policy: {config.get('policy_id', 'unknown')}")
         
-        enc = self._map_crypto(policy.get('encryption_algorithm', 'aes256'))
-        integ = self._map_crypto(policy.get('integrity_algorithm', 'sha256'))
-        dh = self._map_crypto(policy.get('dh_group', 'modp2048'))
+        name = config.get('policy_id', 'default_policy').replace(" ", "_")
+        local_ts = conn.get('local_subnet', '0.0.0.0/0')
+        remote_ts = conn.get('remote_subnet', '0.0.0.0/0')
+        psk = ipsec.get('authentication', {}).get('secret_ref', '')
+        
+        ike = ipsec.get('crypto', {}).get('ike', {})
+        
+        enc = self._map_crypto(ike.get('encryption', 'aes256'))
+        integ = self._map_crypto(ike.get('integrity', 'sha256'))
+        dh = self._map_crypto(ike.get('dh_group', 'modp2048'))
         
         proposal = f"{enc}-{integ}-{dh}"
 
@@ -86,7 +92,7 @@ secrets {{
             
             # 2. Reload swanctl
             subprocess.run(["swanctl", "--reload"], check=True, capture_output=True)
-            logger.info(f"Linux IPsec rule '{policy['name']}' applied via swanctl.")
+            logger.info(f"Linux IPsec rule '{name}' applied via swanctl.")
             return True
         except Exception as e:
             logger.error(f"Failed to apply Linux policy: {str(e)}")

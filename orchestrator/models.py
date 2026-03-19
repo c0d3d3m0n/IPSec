@@ -10,19 +10,8 @@ class Policy(Base):
     name = Column(String, unique=True, index=True)
     description = Column(String, nullable=True)
     
-    # IPsec Configuration
-    ike_version = Column(String, default="ikev2")
-    encryption_algorithm = Column(String, default="aes256")
-    integrity_algorithm = Column(String, default="sha256")
-    dh_group = Column(String, default="modp2048")
-    
-    # Network Selectors
-    local_network_cidr = Column(String) # The network behind the device
-    remote_network_cidr = Column(String) # The network the device connects to
-    
-    # Authentication
-    auth_method = Column(String, default="psk") # psk, pubkey
-    psk_secret = Column(String, nullable=True) # Encrypted in real app
+    # Unified JSON Config
+    config_data = Column(Text, nullable=False) # Store the unified JSON object as a text block
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -1,0 +1,100 @@
+{
+  "policies": [
+    {
+      "policy_id": "ipsec-windows-baseline-001",
+      "version": "1.0",
+      "description": "Windows IPSec Baseline Configuration",
+      "target": {
+        "os": ["windows"],
+        "device_groups": ["hq-workstations"]
+      },
+      "ipsec_policy": {
+        "mode": "tunnel",
+        "key_exchange": "ikev2",
+        "authentication": {
+          "type": "psk",
+          "secret_ref": "SuperSecretWindowsKey123!"
+        },
+        "crypto": {
+          "ike": {
+            "encryption": "aes256",
+            "integrity": "sha256",
+            "dh_group": "modp2048"
+          },
+          "esp": {
+            "encryption": "aes256",
+            "integrity": "sha256",
+            "pfs": true
+          }
+        },
+        "connections": [
+          {
+            "name": "win-hq-site",
+            "local_ip": "192.168.10.100",
+            "local_subnet": "192.168.10.0/24",
+            "remote_ip": "10.10.10.1",
+            "remote_subnet": "10.10.10.0/24",
+            "auto_start": true
+          }
+        ]
+      },
+      "execution": {
+        "retry_count": 3,
+        "timeout_seconds": 60,
+        "rollback_on_failure": true
+      },
+      "compliance": {
+        "require_strong_crypto": true,
+        "require_pfs": true
+      }
+    },
+    {
+      "policy_id": "ipsec-linux-baseline-002",
+      "version": "1.0",
+      "description": "Enterprise Linux strongSwan Validation",
+      "target": {
+        "os": ["linux"],
+        "device_groups": ["cloud-gateways"]
+      },
+      "ipsec_policy": {
+        "mode": "tunnel",
+        "key_exchange": "ikev2",
+        "authentication": {
+          "type": "psk",
+          "secret_ref": "SuperSecretLinuxKeyThisTime!"
+        },
+        "crypto": {
+          "ike": {
+            "encryption": "aes256",
+            "integrity": "sha256",
+            "dh_group": "modp2048"
+          },
+          "esp": {
+            "encryption": "aes256",
+            "integrity": "sha256",
+            "pfs": true
+          }
+        },
+        "connections": [
+          {
+            "name": "linux-gateway",
+            "local_ip": "10.100.0.5",
+            "local_subnet": "10.100.0.0/16",
+            "remote_ip": "172.16.0.5",
+            "remote_subnet": "172.16.0.0/16",
+            "auto_start": true
+          }
+        ]
+      },
+      "execution": {
+        "retry_count": 5,
+        "timeout_seconds": 120,
+        "rollback_on_failure": true
+      },
+      "compliance": {
+        "require_strong_crypto": true,
+        "require_pfs": true
+      }
+    }
+  ]
+}

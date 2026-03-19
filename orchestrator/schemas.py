@@ -2,29 +2,81 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-# Policy Schemas
-class PolicyBase(BaseModel):
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Dict, Any
+
+# --- Unified Policy Schemas ---
+class TargetSchema(BaseModel):
+    os: List[str]
+    device_groups: Optional[List[str]] = None
+
+class AuthSchema(BaseModel):
+    type: str # e.g. psk
+    secret_ref: str
+
+class CryptoConfigSchema(BaseModel):
+    encryption: str
+    integrity: str
+    dh_group: Optional[str] = None
+    pfs: Optional[bool] = None
+
+class CryptoSchema(BaseModel):
+    ike: CryptoConfigSchema
+    esp: CryptoConfigSchema
+
+    @field_validator('ike', 'esp')
+    def validate_crypto(cls, v: CryptoConfigSchema):
+        weak_algos = ['des', 'md5', 'rc4', '3des']
+        if v.encryption.lower() in weak_algos or v.integrity.lower() in weak_algos:
+            raise ValueError(f"Weak crypto algorithm detected in {v}. Use aes256/sha256 or better.")
+        return v
+
+class ConnectionSchema(BaseModel):
+    name: str
+    local_ip: str
+    local_subnet: str
+    remote_ip: str
+    remote_subnet: str
+    auto_start: bool = True
+
+class IPsecPolicySchema(BaseModel):
+    mode: str
+    key_exchange: str
+    authentication: AuthSchema
+    crypto: CryptoSchema
+    connections: List[ConnectionSchema]
+
+class ExecutionSchema(BaseModel):
+    retry_count: int = 3
+    timeout_seconds: int = 60
+    rollback_on_failure: bool = True
+
+class ComplianceSchema(BaseModel):
+    require_strong_crypto: bool = True
+    require_pfs: bool = True
+
+class UnifiedPolicyCreate(BaseModel):
+    policy_id: str
+    version: str
+    description: Optional[str] = None
+    target: TargetSchema
+    ipsec_policy: IPsecPolicySchema
+    execution: ExecutionSchema
+    compliance: ComplianceSchema
+
+class PolicyResponse(BaseModel):
+    id: int
     name: str
     description: Optional[str] = None
-    ike_version: str = "ikev2"
-    encryption_algorithm: str = "aes256"
-    integrity_algorithm: str = "sha256"
-    dh_group: str = "modp2048"
-    local_network_cidr: str
-    remote_network_cidr: str
-    auth_method: str = "psk"
-    psk_secret: Optional[str] = None
-
-class PolicyCreate(PolicyBase):
-    pass
-
-class Policy(PolicyBase):
-    id: int
+    config_data: UnifiedPolicyCreate
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+class PolicyBulkUpload(BaseModel):
+    policies: List[UnifiedPolicyCreate]
 
 # User & Auth Schemas
 class UserBase(BaseModel):
@@ -76,7 +128,7 @@ class Device(DeviceBase):
     is_active: bool
     last_seen: Optional[datetime] = None
     policy_id: Optional[int] = None
-    policy: Optional[Policy] = None
+    policy: Optional[PolicyResponse] = None
     created_at: datetime
 
     class Config:
