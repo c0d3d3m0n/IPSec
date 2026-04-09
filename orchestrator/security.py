@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
-from typing import Optional, Union, Any
+from typing import Optional
 from jose import jwt
 from passlib.context import CryptContext
 import os
+from .config import get_settings
 
 # Password hashing
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+settings = get_settings()
 
 # Load RS512 Keys
 PRIVATE_KEY_PATH = "keys/private_key.pem"
@@ -40,8 +42,8 @@ def load_keys():
     )
 
 PRIVATE_KEY, PUBLIC_KEY = load_keys()
-ALGORITHM = "RS512"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours for admin convenience
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -61,7 +63,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def decode_access_token(token: str) -> Optional[dict]:
     try:
-        decoded_token = jwt.decode(token, PUBLIC_KEY, algorithms=[ALGORITHM])
-        return decoded_token if decoded_token["exp"] >= datetime.utcnow().timestamp() else None
+        return jwt.decode(token, PUBLIC_KEY, algorithms=[ALGORITHM])
     except Exception:
         return None

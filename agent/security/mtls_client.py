@@ -1,0 +1,55 @@
+import json
+import logging
+import time
+from typing import Any
+
+import requests
+
+
+logger = logging.getLogger(__name__)
+
+
+class MTLSClient:
+    def __init__(self, cert_path: str, key_path: str, ca_cert_path: str):
+        self.session = requests.Session()
+        self.session.cert = (cert_path, key_path)
+        self.session.verify = ca_cert_path
+
+    def get(self, url: str, **kwargs):
+        return self._request("GET", url, None, **kwargs)
+
+    def post(self, url: str, json_payload: dict[str, Any], **kwargs):
+        return self._request("POST", url, json_payload, **kwargs)
+
+    def _request(self, method: str, url: str, payload: dict[str, Any] | None, **kwargs):
+        delays = [1, 2, 4]
+        for attempt, delay in enumerate(delays, start=1):
+            try:
+                if method == "GET":
+                    response = self.session.get(url, **kwargs)
+                else:
+                    response = self.session.post(url, json=payload, **kwargs)
+
+                if response.status_code == 403:
+                    try:
+                        body = response.json()
+                    except Exception:
+                        body = {}
+                    if body.get("reason") == "zero_trust_deny":
+                        logger.error(
+                            "Zero Trust deny: score=%s reasons=%s",
+                            body.get("score"),
+                            body.get("reasons"),
+                        )
+                        return response
+                return response
+            except requests.exceptions.SSLError:
+                logger.error("mTLS handshake failed")
+                raise
+            except requests.exceptions.ConnectionError as exc:
+                logger.warning("Connection error on attempt %s: %s", attempt, exc)
+                if attempt == len(delays):
+                    raise
+                time.sleep(delay)
+
+        raise RuntimeError("Unexpected retry loop exit")

@@ -5,6 +5,9 @@ from orchestrator.config import get_settings
 import sys
 
 def seed_admin(username, password):
+    settings = get_settings()
+    settings.validate_runtime_settings()
+
     # Ensure tables exist
     Base.metadata.create_all(bind=engine)
     

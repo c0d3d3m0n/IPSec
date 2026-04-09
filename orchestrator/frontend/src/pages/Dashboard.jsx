@@ -334,12 +334,15 @@ function Dashboard({ onLogout }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px' }}>
                     <div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Local Network</div>
-                      <div style={{ fontWeight: 500 }}>{policy.local_network_cidr}</div>
+                      <div style={{ fontWeight: 500 }}>{policy.config_data?.ipsec_policy?.connections?.[0]?.local_subnet || 'N/A'}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Remote Network</div>
-                      <div style={{ fontWeight: 500 }}>{policy.remote_network_cidr}</div>
+                      <div style={{ fontWeight: 500 }}>{policy.config_data?.ipsec_policy?.connections?.[0]?.remote_subnet || 'N/A'}</div>
                     </div>
+                  </div>
+                  <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Policy ID: {policy.config_data?.policy_id || policy.name}
                   </div>
                 </div>
               ))}

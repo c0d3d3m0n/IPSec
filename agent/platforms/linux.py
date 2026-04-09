@@ -1,12 +1,17 @@
 import subprocess
 import logging
 import os
+import ipaddress
+import re
 from typing import Dict, Any
 from .base import PlatformManager
 
 logger = logging.getLogger(__name__)
 
 class LinuxManager(PlatformManager):
+    def __init__(self):
+        self.last_policy_name: str | None = None
+
     def is_admin(self) -> bool:
         return os.geteuid() == 0
 
@@ -21,7 +26,23 @@ class LinuxManager(PlatformManager):
             'modp3072': 'modp3072',
             'ecp256': 'ecp256'
         }
-        return mapping.get(algo.lower(), algo.lower())
+        normalized = algo.lower()
+        if normalized not in mapping:
+            raise ValueError(f"Unsupported crypto algorithm: {algo}")
+        return mapping[normalized]
+
+    def _sanitize_identifier(self, value: str) -> str:
+        sanitized = re.sub(r"[^A-Za-z0-9_-]+", "_", value or "default_policy")
+        sanitized = sanitized.strip("_")
+        return sanitized or "default_policy"
+
+    def _validate_network(self, value: str) -> str:
+        network = ipaddress.ip_network(value, strict=False)
+        return str(network)
+
+    def _quote(self, value: str) -> str:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
 
     def apply_policy(self, policy: Dict[str, Any]) -> bool:
         if not self.is_admin():
@@ -35,10 +56,12 @@ class LinuxManager(PlatformManager):
         
         logger.info(f"Applying Enterprise Linux IPsec policy: {config.get('policy_id', 'unknown')}")
         
-        name = config.get('policy_id', 'default_policy').replace(" ", "_")
-        local_ts = conn.get('local_subnet', '0.0.0.0/0')
-        remote_ts = conn.get('remote_subnet', '0.0.0.0/0')
+        name = self._sanitize_identifier(config.get('policy_id', 'default_policy'))
+        local_ts = self._validate_network(conn.get('local_subnet', '0.0.0.0/0'))
+        remote_ts = self._validate_network(conn.get('remote_subnet', '0.0.0.0/0'))
         psk = ipsec.get('authentication', {}).get('secret_ref', '')
+        if not psk:
+            raise ValueError("Policy is missing a pre-shared key")
         
         ike = ipsec.get('crypto', {}).get('ike', {})
         
@@ -64,20 +87,20 @@ connections {{
         }}
         children {{
             {name} {{
-                local_ts  = {local_ts}
-                remote_ts = {remote_ts}
-                esp_proposals = {enc}-{integ}
+                local_ts  = {self._quote(local_ts)}
+                remote_ts = {self._quote(remote_ts)}
+                esp_proposals = {self._quote(f'{enc}-{integ}')}
                 mode = transport
                 start_action = trap
             }}
         }}
-        proposals = {proposal}
+        proposals = {self._quote(proposal)}
     }}
 }}
 
 secrets {{
     ike-{name} {{
-        secret = {psk}
+        secret = {self._quote(psk)}
     }}
 }}
 """
@@ -92,6 +115,7 @@ secrets {{
             
             # 2. Reload swanctl
             subprocess.run(["swanctl", "--reload"], check=True, capture_output=True)
+            self.last_policy_name = name
             logger.info(f"Linux IPsec rule '{name}' applied via swanctl.")
             return True
         except Exception as e:
@@ -101,6 +125,10 @@ secrets {{
     def check_tunnel_status(self) -> bool:
         try:
             result = subprocess.run(["swanctl", "--list-sas"], capture_output=True, text=True)
-            return name in result.stdout # Simplified check
+            if not result.stdout.strip():
+                return False
+            if self.last_policy_name:
+                return self.last_policy_name in result.stdout
+            return True
         except Exception:
             return False

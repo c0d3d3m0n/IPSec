@@ -26,7 +26,11 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    totp_secret = Column(String, nullable=True)
+    totp_enabled = Column(Boolean, default=False)
+    failed_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -42,6 +46,8 @@ class Device(Base):
     # New Enrollment flow
     enrollment_number = Column(String, unique=True, index=True) # Visible ID like "EP-001"
     enrollment_token = Column(String, unique=True, index=True) # Secret Token
+    pre_shared_key = Column(String, nullable=True)
+    os_fingerprint = Column(String, nullable=True)
     status = Column(String, default="PENDING") # PENDING, ACTIVE, REVOKED
     
     is_active = Column(Boolean, default=True)
@@ -49,5 +55,7 @@ class Device(Base):
     
     policy_id = Column(Integer, ForeignKey("policies.id"), nullable=True)
     policy = relationship("Policy", back_populates="devices")
+    compliance_records = relationship("ComplianceRecord", back_populates="device")
+    certificates = relationship("DeviceCertificate", back_populates="device")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

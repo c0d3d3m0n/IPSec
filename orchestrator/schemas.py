@@ -97,6 +97,7 @@ class User(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None
@@ -110,10 +111,13 @@ class DeviceBase(BaseModel):
 class DeviceCreate(DeviceBase):
     enrollment_number: str
     enrollment_token: str
+    os_fingerprint: str
+    agent_signature: str
 
 class DeviceAdminCreate(BaseModel):
     enrollment_number: str
     enrollment_token: str
+    pre_shared_key: Optional[str] = None
 
 class DeviceUpdate(BaseModel):
     public_ip: Optional[str] = None
@@ -124,6 +128,7 @@ class Device(DeviceBase):
     id: int
     enrollment_number: str
     enrollment_token: str
+    os_fingerprint: Optional[str] = None
     status: str
     is_active: bool
     last_seen: Optional[datetime] = None
@@ -133,3 +138,23 @@ class Device(DeviceBase):
 
     class Config:
         from_attributes = True
+
+
+class DeviceEnrollmentResponse(Device):
+    cert_pem: str
+    private_key_pem: str
+    ca_cert_pem: str
+
+
+class TOTPSetupResponse(BaseModel):
+    qr_code_png_base64: str
+    secret: str
+    provisioning_uri: str
+
+
+class TOTPVerifyRequest(BaseModel):
+    totp_code: str
+
+
+class TOTPVerifyResponse(BaseModel):
+    verified: bool

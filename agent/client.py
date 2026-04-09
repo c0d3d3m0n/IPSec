@@ -1,7 +1,6 @@
 import requests
 import platform
 import socket
-import json
 import logging
 from typing import Optional, Dict, Any
 
@@ -13,8 +12,9 @@ class OrchestratorClient:
         self.enrollment_token = enrollment_token
         self.device_id: Optional[int] = None
         self.session = requests.Session()
+        self.session.headers.update({"X-Enrollment-Token": enrollment_token})
 
-    def enroll(self, enrollment_number: str) -> bool:
+    def enroll(self, enrollment_number: str, os_fingerprint: str, agent_signature: str) -> Optional[Dict[str, Any]]:
         """Register the device with the orchestrator."""
         hostname = socket.gethostname()
         os_type = platform.system().lower()
@@ -30,19 +30,21 @@ class OrchestratorClient:
             "os_type": os_type,
             "public_ip": public_ip,
             "enrollment_number": enrollment_number,
-            "enrollment_token": self.enrollment_token
+            "enrollment_token": self.enrollment_token,
+            "os_fingerprint": os_fingerprint,
+            "agent_signature": agent_signature,
         }
 
         try:
-            response = self.session.post(f"{self.base_url}/devices/enroll", json=payload)
+            response = self.session.post(f"{self.base_url}/devices/enroll", json=payload, timeout=15)
             response.raise_for_status()
             data = response.json()
             self.device_id = data['id']
             logger.info(f"Device enrolled successfully (Number: {enrollment_number}). ID: {self.device_id}")
-            return True
+            return data
         except Exception as e:
             logger.error(f"Enrollment failed: {e}")
-            return False
+            return None
 
     def get_policy(self) -> Optional[Dict[str, Any]]:
         """Fetch the assigned IPsec policy."""
@@ -51,15 +53,18 @@ class OrchestratorClient:
             return None
 
         try:
-            response = self.session.get(f"{self.base_url}/devices/{self.device_id}/config")
+            response = self.session.get(f"{self.base_url}/devices/{self.device_id}/config", timeout=15)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 logger.warning("No policy assigned yet.")
+                return None
+            if e.response.status_code == 401:
+                raise PermissionError("Device token rejected by orchestrator") from e
             else:
                 logger.error(f"Failed to fetch policy: {e}")
-            return None
+            raise
         except Exception as e:
             logger.error(f"Error fetching policy: {e}")
-            return None
+            raise
