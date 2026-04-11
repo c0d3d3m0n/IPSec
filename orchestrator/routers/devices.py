@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, Query
 from sqlalchemy.orm import Session
 from typing import List
 import json
@@ -158,10 +158,11 @@ def read_device(
         raise HTTPException(status_code=404, detail="Device not found")
     return device
 
-@router.get("/{device_id}/config", response_model=schemas.PolicyResponse)
+@router.get("/{device_id}/config")
 def get_device_config(
     device_id: int,
     device_token: str = Header(..., alias="X-Enrollment-Token"),
+    os_type: str | None = Query(default=None),
     db: Session = Depends(database.get_db),
 ):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
@@ -178,14 +179,63 @@ def get_device_config(
         # Update last_seen even if no policy, to act as heartbeat
         device.last_seen = datetime.utcnow()
         db.commit()
-        raise HTTPException(status_code=404, detail="No policy assigned to this device")
-        
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": "No policy assigned to this device",
+                "device_id": device_id,
+                "action_required": "contact_admin",
+            },
+        )
+
+    if os_type is not None:
+        normalized_os = os_type.strip().lower()
+        if normalized_os not in {"linux", "windows", "macos"}:
+            raise HTTPException(status_code=422, detail=f"Unsupported OS type: {os_type}")
+
     # Update last_seen on every config poll (heartbeat)
     device.last_seen = datetime.utcnow()
     db.commit()
     db.refresh(device)
     
     policy = device.policy
-    policy.config_data = json.loads(policy.config_data)
-    
-    return policy
+    config_data = json.loads(policy.config_data) if isinstance(policy.config_data, str) else policy.config_data
+
+    if os_type is None:
+        return config_data
+
+    normalized_os = os_type.strip().lower()
+    per_os_configs = config_data.get("per_os_configs") or {}
+    if normalized_os not in per_os_configs:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"Assigned policy has no config for OS '{normalized_os}'",
+                "device_id": device_id,
+                "policy_id": config_data.get("policy_id", policy.name),
+                "available_os": list(per_os_configs.keys()),
+                "action_required": "ask_admin_to_update_policy_target_os",
+            },
+        )
+
+    os_config = per_os_configs[normalized_os]
+    return {
+        "policy_id": config_data.get("policy_id", policy.name),
+        "version": config_data.get("version"),
+        "description": config_data.get("description"),
+        "ike_encryption": os_config.get("ike_encryption"),
+        "ike_integrity": os_config.get("ike_integrity"),
+        "ike_dh_group": os_config.get("ike_dh_group"),
+        "esp_encryption": os_config.get("esp_encryption"),
+        "esp_integrity": os_config.get("esp_integrity"),
+        "esp_dh_group": os_config.get("esp_dh_group"),
+        "key_exchange": os_config.get("key_exchange"),
+        "mode": os_config.get("mode"),
+        "connections": os_config.get("connections", []),
+        "auth_type": os_config.get("auth_type"),
+        "auth_secret_ref": os_config.get("auth_secret_ref"),
+        "driver_block": os_config.get("driver_block", {}),
+        "compliance": config_data.get("compliance", {}),
+        "execution": config_data.get("execution", {}),
+        "parse_warnings": config_data.get("parse_warnings", []),
+    }

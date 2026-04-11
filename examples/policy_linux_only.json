@@ -1,0 +1,58 @@
+{
+  "policy_id": "policy-linux-only",
+  "version": "2.0.0",
+  "description": "Linux-only policy using alias variations to demonstrate normalization.",
+  "target": {
+    "os": ["linux"],
+    "device_groups": ["linux-servers"]
+  },
+  "ipsec_policy": {
+    "mode": "tunnel",
+    "key_exchange": "ikev2",
+    "authentication": {
+      "type": "psk",
+      "secret_ref": "psk_policy_linux_only"
+    },
+    "crypto": {
+      "ike": {
+        "encryption": "aes256gcm16",
+        "integrity": "sha512",
+        "dh_group": "group20",
+        "pfs": true
+      },
+      "esp": {
+        "encryption": "AES-256-GCM",
+        "integrity": "hmac-sha512",
+        "dh_group": "ecp384",
+        "pfs": true
+      }
+    },
+    "connections": [
+      {
+        "name": "linux-web",
+        "local_ip": "192.168.10.10",
+        "local_subnet": "192.168.10.0/24",
+        "remote_ip": "10.20.0.10",
+        "remote_subnet": "10.20.0.0/24",
+        "auto_start": true
+      },
+      {
+        "name": "linux-db",
+        "local_ip": "192.168.10.10",
+        "local_subnet": "192.168.10.0/24",
+        "remote_ip": "10.20.1.10",
+        "remote_subnet": "10.20.1.0/24",
+        "auto_start": true
+      }
+    ]
+  },
+  "execution": {
+    "retry_count": 2,
+    "timeout_seconds": 45,
+    "rollback_on_failure": true
+  },
+  "compliance": {
+    "require_strong_crypto": true,
+    "require_pfs": true
+  }
+}

@@ -7,8 +7,9 @@ from typing import Any
 
 
 class SAMonitor:
-    def __init__(self, agent_id: int):
+    def __init__(self, agent_id: int, os_type: str | None = None):
         self.agent_id = agent_id
+        self.os_type = (os_type or platform.system()).lower()
 
     def _parse_linux_xfrm(self) -> list[dict[str, Any]]:
         result = subprocess.run(["ip", "-s", "xfrm", "state", "show"], capture_output=True, text=True, check=False)
@@ -157,7 +158,7 @@ class SAMonitor:
         }
 
     def collect_snapshot(self) -> dict[str, Any]:
-        current = platform.system().lower()
+        current = self.os_type
         if current == "linux":
             return self.collect_linux_snapshot()
         if current == "windows":

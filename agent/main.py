@@ -1,16 +1,13 @@
 import getpass
-import json
 import logging
 import os
-import platform
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import config
 from client import OrchestratorClient
-from platforms.base import PlatformManager
+from drivers.dispatcher import DriverDispatcher
 from security.device_fingerprint import DeviceFingerprint
 from security.mtls_client import MTLSClient
 from verification.leak_detector import LeakDetector
@@ -27,20 +24,18 @@ def _normalize_algo(value: str | None) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
 
 
-def _expected_esp(policy: dict) -> tuple[str, str, bool]:
-    config_data = policy.get("config_data", {})
-    esp = (((config_data.get("ipsec_policy") or {}).get("crypto") or {}).get("esp") or {})
+def _expected_esp(config_data: dict) -> tuple[str, str, bool]:
     compliance = config_data.get("compliance") or {}
+    esp = config_data or {}
     return (
-        _normalize_algo(esp.get("encryption")),
-        _normalize_algo(esp.get("integrity")),
+        _normalize_algo(esp.get("esp_encryption")),
+        _normalize_algo(esp.get("esp_integrity")),
         bool(compliance.get("require_pfs", False)),
     )
 
 
-def _extract_protected_subnets(policy: dict) -> list[str]:
-    config_data = policy.get("config_data", {})
-    connections = ((config_data.get("ipsec_policy") or {}).get("connections") or [])
+def _extract_protected_subnets(config_data: dict) -> list[str]:
+    connections = config_data.get("connections") or []
     subnets: list[str] = []
     for conn in connections:
         if conn.get("local_subnet"):
@@ -63,18 +58,6 @@ def _save_certificates(enrollment_payload: dict):
     ca_path.write_text(enrollment_payload["ca_cert_pem"], encoding="utf-8")
 
 
-def get_platform_manager() -> PlatformManager:
-    if sys.platform == "linux":
-        from platforms.linux import LinuxManager
-
-        return LinuxManager()
-    if sys.platform == "win32":
-        from platforms.windows import WindowsManager
-
-        return WindowsManager()
-    raise RuntimeError(f"Unsupported platform: {sys.platform}. Supported platforms are Linux and Windows.")
-
-
 def _response_json(response):
     try:
         return response.json()
@@ -92,8 +75,8 @@ def main():
     fingerprint_signature = DeviceFingerprint().sign(fingerprint["fingerprint"], pre_shared_key)
 
     bootstrap = OrchestratorClient(orchestrator_url, enrollment_token)
-    platform_mgr = get_platform_manager()
-    os_type = platform.system().lower()
+    driver_dispatcher = DriverDispatcher()
+    os_type = driver_dispatcher.os
 
     logger.info("Starting Agent bootstrap for %s", enrollment_number)
 
@@ -125,8 +108,9 @@ def main():
     )
 
     poll_interval = config.POLL_INTERVAL
-    current_policy = None
-    sa_monitor = SAMonitor(agent_id=device_id)
+    last_applied_version: str | None = None
+    current_config: dict | None = None
+    sa_monitor = SAMonitor(agent_id=device_id, os_type=os_type)
     protected_subnets = [s.strip() for s in config.PROTECTED_SUBNETS.split(",") if s.strip()]
     leak_detector = LeakDetector(protected_subnets)
     if protected_subnets:
@@ -134,90 +118,65 @@ def main():
 
     headers = {"X-Enrollment-Token": enrollment_token}
 
+    def send_heartbeat(status_value: str, policy_version_applied: str) -> str:
+        heartbeat_payload = {
+            "device_id": device_id,
+            "status": status_value,
+            "policy_version_applied": policy_version_applied,
+            "os_type": os_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        hb_resp = mtls.post(
+            f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/heartbeat",
+            json_payload=heartbeat_payload,
+            headers=headers,
+            timeout=15,
+        )
+        if hb_resp.status_code == 403:
+            payload = _response_json(hb_resp)
+            if payload.get("reason") == "zero_trust_restrict":
+                logger.warning("Device in restricted mode; skipping non-heartbeat calls")
+                return "restrict"
+            if payload.get("reason") == "zero_trust_deny":
+                logger.error("Zero Trust deny on heartbeat: %s", payload)
+                return "deny"
+        return "ok"
+
     while True:
         try:
-            restricted_mode = False
-
             config_resp = mtls.get(
-                f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/config",
+                f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/config?os_type={os_type}",
                 headers=headers,
                 timeout=15,
             )
 
             if config_resp.status_code == 200:
-                policy = config_resp.json()
-                platform_mgr.apply_policy(policy)
-                current_policy = policy
-            elif config_resp.status_code == 404:
-                current_policy = None
-                logger.info("No policy assigned")
-            elif config_resp.status_code == 403:
-                payload = _response_json(config_resp)
-                if payload.get("reason") in {"zero_trust_restrict", "zero_trust_deny"}:
-                    restricted_mode = True
-                    logger.warning("Zero Trust restricted config access: %s", payload)
-            else:
-                logger.warning("Unexpected config status: %s", config_resp.status_code)
+                current_config = config_resp.json()
+                incoming_version = str(current_config.get("version") or "")
+                if incoming_version != (last_applied_version or ""):
+                    apply_result = driver_dispatcher.apply(current_config)
+                    if not apply_result.success:
+                        logger.error("Driver application failed: %s", apply_result.detail or apply_result.message)
+                        if send_heartbeat("error", str(current_config.get("policy_id") or "")) != "ok":
+                            time.sleep(poll_interval)
+                            continue
+                        time.sleep(poll_interval)
+                        continue
+                    last_applied_version = incoming_version
 
-            policy_version = "none"
-            status_value = "no_policy"
-            if current_policy:
-                status_value = "active"
-                policy_version = str(
-                    current_policy.get("config_data", {}).get("version")
-                    or current_policy.get("config_data", {}).get("policy_id")
-                    or "unknown"
-                )
-
-            heartbeat_payload = {
-                "device_id": device_id,
-                "status": status_value,
-                "policy_version_applied": policy_version,
-                "os_type": os_type,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            hb_resp = mtls.post(
-                f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/heartbeat",
-                json_payload=heartbeat_payload,
-                headers=headers,
-                timeout=15,
-            )
-
-            if hb_resp.status_code == 200:
-                hb_json = hb_resp.json()
-                if hb_json.get("action_required") == "repoll_policy":
-                    repoll = mtls.get(
-                        f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/config",
-                        headers=headers,
-                        timeout=15,
-                    )
-                    if repoll.status_code == 200:
-                        current_policy = repoll.json()
-                        platform_mgr.apply_policy(current_policy)
-            elif hb_resp.status_code == 403:
-                payload = _response_json(hb_resp)
-                if payload.get("reason") == "zero_trust_restrict":
-                    restricted_mode = True
-                    logger.warning("Device in restricted mode; skipping non-heartbeat calls")
-                elif payload.get("reason") == "zero_trust_deny":
-                    logger.error("Zero Trust deny on heartbeat: %s", payload)
+                if send_heartbeat("active", str(current_config.get("policy_id") or "")) != "ok":
                     time.sleep(poll_interval)
                     continue
 
-            if restricted_mode:
-                time.sleep(poll_interval)
-                continue
-
-            if current_policy:
                 if not protected_subnets:
-                    dynamic_subnets = _extract_protected_subnets(current_policy)
+                    dynamic_subnets = _extract_protected_subnets(current_config)
                     if dynamic_subnets:
                         protected_subnets = dynamic_subnets
                         leak_detector = LeakDetector(protected_subnets)
                         leak_detector.start(config.LEAK_DETECTION_IFACE)
 
                 snapshot = sa_monitor.collect_snapshot()
-                expected_enc, expected_integ, require_pfs = _expected_esp(current_policy)
+                expected_enc, expected_integ, require_pfs = _expected_esp(current_config)
                 actual_enc = {_normalize_algo(sa.get("encryption_algo")) for sa in snapshot.get("active_sas", [])}
                 actual_integ = {_normalize_algo(sa.get("integrity_algo")) for sa in snapshot.get("active_sas", [])}
 
@@ -243,7 +202,32 @@ def main():
                     if payload.get("reason") == "zero_trust_restrict":
                         logger.warning("Compliance blocked due to restricted mode")
                 leak_detector.reset()
-
+            elif config_resp.status_code == 404:
+                payload = _response_json(config_resp)
+                logger.warning("No policy assigned: %s", payload)
+                if send_heartbeat("no_policy", "") != "ok":
+                    time.sleep(poll_interval)
+                    continue
+            elif config_resp.status_code == 409:
+                payload = _response_json(config_resp)
+                logger.error("Policy not built for this OS. Available OS targets: %s", payload.get("available_os", []))
+                if send_heartbeat("degraded", str(payload.get("policy_id") or "")) != "ok":
+                    time.sleep(poll_interval)
+                    continue
+            elif config_resp.status_code == 403:
+                payload = _response_json(config_resp)
+                reason = payload.get("reason")
+                logger.warning("Zero Trust denied config access: %s", payload)
+                if reason == "zero_trust_deny":
+                    if send_heartbeat("error", str(payload.get("policy_id") or "")) != "ok":
+                        time.sleep(poll_interval)
+                        continue
+                else:
+                    if send_heartbeat("degraded", str(payload.get("policy_id") or "")) != "ok":
+                        time.sleep(poll_interval)
+                        continue
+            else:
+                logger.warning("Unexpected config status: %s", config_resp.status_code)
             time.sleep(poll_interval)
         except KeyboardInterrupt:
             logger.info("Stopping Agent")

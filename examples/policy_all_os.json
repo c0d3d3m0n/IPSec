@@ -1,0 +1,58 @@
+{
+  "policy_id": "policy-all-os",
+  "version": "1.0.0",
+  "description": "All OS target policy using strong cryptography and PFS.",
+  "target": {
+    "os": ["linux", "windows", "macos"],
+    "device_groups": ["production", "remote-workers"]
+  },
+  "ipsec_policy": {
+    "mode": "tunnel",
+    "key_exchange": "ikev2",
+    "authentication": {
+      "type": "psk",
+      "secret_ref": "psk_policy_all_os"
+    },
+    "crypto": {
+      "ike": {
+        "encryption": "AES_GCM_256",
+        "integrity": "HMAC_SHA2_512",
+        "dh_group": "ECP_384",
+        "pfs": true
+      },
+      "esp": {
+        "encryption": "AES_GCM_256",
+        "integrity": "HMAC_SHA2_512",
+        "dh_group": "ECP_384",
+        "pfs": true
+      }
+    },
+    "connections": [
+      {
+        "name": "prod-hq",
+        "local_ip": "10.0.0.10",
+        "local_subnet": "10.0.0.0/24",
+        "remote_ip": "172.16.0.10",
+        "remote_subnet": "172.16.0.0/24",
+        "auto_start": true
+      },
+      {
+        "name": "prod-dr",
+        "local_ip": "10.0.0.10",
+        "local_subnet": "10.0.0.0/24",
+        "remote_ip": "172.16.1.10",
+        "remote_subnet": "172.16.1.0/24",
+        "auto_start": false
+      }
+    ]
+  },
+  "execution": {
+    "retry_count": 3,
+    "timeout_seconds": 60,
+    "rollback_on_failure": true
+  },
+  "compliance": {
+    "require_strong_crypto": true,
+    "require_pfs": true
+  }
+}
