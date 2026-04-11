@@ -5,6 +5,7 @@ __pycache__/
 
 # Virtual Environment
 venv/
+.venv/
 .env
 
 # Database
@@ -22,6 +23,7 @@ Thumbs.db
 # Keys & Secrets (SENSITIVE)
 keys/
 .env*
+!.env.example
 
 # Node
 node_modules/
