@@ -22,6 +22,7 @@ Complete guide to all documentation in the IPSec Framework. Start here to find w
 **Then learn about security**:
 - [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md) - Understand Zero Trust model
 - [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) - Security deep dive
+- [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) - Phase 3 policy parsing and native driver dispatch
 
 ---
 
@@ -200,6 +201,7 @@ Cloud deployment guide (Vercel/Render):
 | MFA setup | [USAGE_GUIDE.md](USAGE_GUIDE.md#step-2-set-up-admin-totp-mfa) | "Set Up Admin TOTP MFA" |
 | Device management | [USAGE_GUIDE.md](USAGE_GUIDE.md#device-enrollment) | "Device Enrollment" |
 | Policy management | [USAGE_GUIDE.md](USAGE_GUIDE.md#policy-management) | "Policy Management" |
+| Policy routing | [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) | "Policy Routing & Driver Dispatch" |
 | Monitoring | [COMPLIANCE_AND_MONITORING.md](COMPLIANCE_AND_MONITORING.md) | All sections |
 | Heartbeat | [COMPLIANCE_AND_MONITORING.md](COMPLIANCE_AND_MONITORING.md#heartbeat-system) | "Heartbeat System" |
 | Compliance | [COMPLIANCE_AND_MONITORING.md](COMPLIANCE_AND_MONITORING.md#compliance-reporting) | "Compliance Reporting" |
@@ -212,6 +214,7 @@ Cloud deployment guide (Vercel/Render):
 | Components | [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md#component-breakdown) | "Component Breakdown" |
 | Trust scoring | [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md#trust-scoring-model) | "Trust Scoring Model" |
 | Certificates | [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md#certificate-lifecycle) | "Certificate Lifecycle" |
+| Policy parsing | [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) | "Policy Routing & Driver Dispatch" |
 | Cryptography | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#cryptographic-algorithms) | "Cryptographic Algorithms" |
 | Threat model | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#threat-model) | "Threat Model" |
 | Incident response | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#incident-response) | "Incident Response" |
@@ -256,6 +259,9 @@ Cloud deployment guide (Vercel/Render):
 **Device Enrollment**
 - → [AGENT_REGISTRATION.md](AGENT_REGISTRATION.md) | Full guide (2 pages)
 - → [USAGE_GUIDE.md](USAGE_GUIDE.md#device-enrollment) | Detailed guide
+
+**Policy Routing**
+- → [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) | "Policy Routing & Driver Dispatch"
 
 **Threat Model**
 - → [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#threat-model) | "Threat Model"

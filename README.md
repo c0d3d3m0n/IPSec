@@ -58,6 +58,11 @@ graph TD
   - [x] Behavioral trust scoring (continuous device evaluation)
   - [x] Zero Trust middleware (threshold-based access control)
   - [x] Rate limiting on all endpoints (DoS protection)
+- [x] **Phase 3 - Policy Routing & Driver Dispatch** (✅ Complete):
+  - [x] Policy parser with alias normalization and validation
+  - [x] Per-OS policy config generation (Linux / Windows / macOS)
+  - [x] OS-specific device config delivery
+  - [x] Native driver dispatch on agents
 - [ ] **macOS Support**: Upcoming integration with native IPsec APIs
 
 ---
@@ -78,6 +83,7 @@ Set up agents on your local machines:
 ### 3. Security & Advanced Topics
 - **Zero Trust Architecture**: [ZERO_TRUST_SETUP.md](docs/ZERO_TRUST_SETUP.md) - Complete Zero Trust implementation
 - **Compliance & Monitoring**: [COMPLIANCE_AND_MONITORING.md](docs/COMPLIANCE_AND_MONITORING.md) - Heartbeat, SA monitoring, leak detection
+- **Policy Routing & Drivers**: [POLICY_ROUTING_AND_DRIVERS.md](docs/POLICY_ROUTING_AND_DRIVERS.md) - Policy parsing and OS-specific dispatch
 - **Security Architecture**: [SECURITY_ARCHITECTURE.md](docs/SECURITY_ARCHITECTURE.md) - Cryptography, threat models, incident response
 
 ---
@@ -104,7 +110,7 @@ Set up agents on your local machines:
 ### Agent
 *   **Lightweight**: Python residents with minimal dependencies
 *   **Platforms**: Windows (PowerShell), Linux (strongSwan)
-*   **Compliance**: Heartbeat, SA monitoring, leak detection
+*   **Compliance**: Heartbeat, SA monitoring, leak detection, OS-specific policy enforcement
 *   **Communication**: mTLS client with automatic retry + backoff
 
 ### Frontend

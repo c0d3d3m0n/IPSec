@@ -10,9 +10,10 @@ Complete walkthrough for using the IPSec Framework with all Phase 1 (Compliance 
 3. [Device Enrollment](#device-enrollment)
 4. [Zero Trust Configuration](#zero-trust-configuration)
 5. [Policy Management](#policy-management)
-6. [Compliance & Monitoring](#compliance--monitoring)
-7. [Audit Logs & Compliance Reports](#audit-logs--compliance-reports)
-8. [Troubleshooting](#troubleshooting)
+6. [Policy Routing & Driver Dispatch](#policy-routing--driver-dispatch)
+7. [Compliance & Monitoring](#compliance--monitoring)
+8. [Audit Logs & Compliance Reports](#audit-logs--compliance-reports)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -275,6 +276,45 @@ RESTRICTED_THRESHOLD = 40
    - SA (Security Association) status per device
    - Algorithm matching results
    - Last modified timestamp
+
+---
+
+## Policy Routing & Driver Dispatch
+
+Phase 3 adds OS-aware policy delivery. The orchestrator now normalizes policy JSON before storing it and builds a separate config payload for each supported operating system.
+
+### How It Works
+
+1. Upload a policy JSON file through the policy upload endpoint.
+2. The orchestrator validates required fields, target OS values, crypto names, and connection definitions.
+3. The orchestrator stores the original JSON plus a `per_os_configs` structure.
+4. Each agent requests `GET /api/devices/{device_id}/config?os_type=<os>`.
+5. The agent applies only the native driver block for its own platform.
+
+### Supported OS Values
+
+- `linux`
+- `windows`
+- `macos`
+
+### What the Parser Normalizes
+
+- Encryption names such as `aes-gcm-256`, `aes256gcm16`, and `AES-256-GCM`
+- Integrity names such as `sha512` and `hmac-sha512`
+- DH groups such as `group20` and `ecp384`
+
+### What Agents Receive
+
+- Linux agents receive strongSwan-style connection and secret blocks.
+- Windows agents receive PowerShell cmdlet instructions.
+- macOS agents receive racoon-style remote blocks.
+
+### Example Policies
+
+Use these files to test routing behavior:
+
+- [policy_all_os.json](../examples/policy_all_os.json)
+- [policy_linux_only.json](../examples/policy_linux_only.json)
 
 ---
 

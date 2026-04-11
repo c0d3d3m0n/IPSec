@@ -128,6 +128,8 @@ A device is marked **OFFLINE** when:
 ### Purpose
 Regular snapshots of device security posture and policy adherence.
 
+Phase 3 keeps this report format, but the parser now delivers OS-specific `esp_encryption` and `esp_integrity` values to the agent, so compliance checks compare against the native format that the local driver actually negotiated.
+
 ### What Gets Reported
 
 Every 5 minutes, agents send a compliance report:

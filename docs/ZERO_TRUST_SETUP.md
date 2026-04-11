@@ -13,7 +13,8 @@ Complete reference for the Zero Trust security model implemented in Phase 2 of t
 6. [Trust Scoring Model](#trust-scoring-model)
 7. [Certificate Lifecycle](#certificate-lifecycle)
 8. [Token Management](#token-management)
-9. [Troubleshooting](#troubleshooting)
+9. [Policy Routing & Driver Dispatch](#policy-routing--driver-dispatch)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -486,6 +487,36 @@ class TrustEvaluator:
     LEAK_DEDUCTION = 50            # If leak detected
     NO_SA_DEDUCTION = 20           # If no active tunnels
 ```
+
+  ### Phase 5: Enable Policy Routing
+
+  Phase 3 moves policy handling from raw JSON storage to OS-aware delivery.
+
+  #### Why This Matters
+
+  - Prevents Windows policy syntax from reaching Linux agents.
+  - Prevents Linux strongSwan syntax from reaching Windows agents.
+  - Normalizes crypto aliases before storage.
+  - Gives the agent a native driver block it can apply without guessing.
+
+  #### Orchestrator Behavior
+
+  - `POST /api/policies/upload` validates the file before writing to the database.
+  - The stored policy includes `per_os_configs`, `input_hash`, and `parse_warnings`.
+  - `GET /api/devices/{device_id}/config?os_type=<os>` returns the OS-specific view.
+
+  #### Agent Behavior
+
+  - The agent detects its OS at startup.
+  - It requests the matching OS config from the orchestrator.
+  - It applies the native driver block through the dispatcher.
+  - It skips the rest of the cycle if the policy is unavailable, degraded, or denied.
+
+  #### Useful Files
+
+  - [orchestrator/services/policy_parser.py](../orchestrator/services/policy_parser.py)
+  - [agent/drivers/dispatcher.py](../agent/drivers/dispatcher.py)
+  - [docs/POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md)
 
 ---
 
