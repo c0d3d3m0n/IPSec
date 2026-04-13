@@ -150,6 +150,11 @@ def _ensure_auth_schema_compatibility() -> None:
         for stmt in statements:
             conn.execute(text(stmt))
 
+
+# Resolve CA files before middleware is created so middleware can initialize cleanly.
+_INITIAL_CA_CERT_PATH, _INITIAL_CA_KEY_PATH = _ensure_ca_keypair()
+ZeroTrustMiddleware.configure_ca(_INITIAL_CA_CERT_PATH, _INITIAL_CA_KEY_PATH)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
