@@ -27,7 +27,7 @@ _BASE_DIR = Path(__file__).resolve().parent
 _token_manager_module = _load_module("orchestrator_security_token_manager", _BASE_DIR / "security" / "token_manager.py")
 TokenManager = _token_manager_module.TokenManager
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
