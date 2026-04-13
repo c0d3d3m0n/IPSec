@@ -223,6 +223,7 @@ Cloud deployment guide (Vercel/Render):
 | Topic | File | Section |
 |-------|------|---------|
 | Common issues | [USAGE_GUIDE.md](USAGE_GUIDE.md#troubleshooting) | "Troubleshooting" |
+| API testing | [API_TESTING_GUIDE.md](API_TESTING_GUIDE.md) | Full guide |
 | Connection issues | [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md#troubleshooting) | "Troubleshooting" |
 | Certificate issues | [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md#troubleshooting) | "Certificate Verification Failures" |
 | API reference | [USAGE_GUIDE.md](USAGE_GUIDE.md#advanced-api-reference) | "API Reference" |
