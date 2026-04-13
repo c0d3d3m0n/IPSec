@@ -13,6 +13,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
+from sqlalchemy import inspect, text
 from orchestrator.database import engine, Base
 from orchestrator.routers import devices, policies, auth
 from orchestrator.routers.compliance import router as compliance_router
@@ -106,6 +107,31 @@ def _ensure_ca_keypair() -> tuple[str, str]:
     print("Auto-generated CA keypair at startup — for production, generate offline and mount as secret")
     return ca_cert_path, ca_key_path
 
+
+def _ensure_auth_schema_compatibility() -> None:
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("users")}
+    statements: list[str] = []
+
+    if "totp_secret" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN totp_secret VARCHAR")
+    if "totp_enabled" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0")
+    if "failed_attempts" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0")
+    if "locked_until" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN locked_until TIMESTAMP")
+
+    if not statements:
+        return
+
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -113,6 +139,7 @@ async def lifespan(app: FastAPI):
     ca_cert_path, ca_key_path = _ensure_ca_keypair()
     ZeroTrustMiddleware.configure_ca(ca_cert_path, ca_key_path)
     Base.metadata.create_all(bind=engine)
+    _ensure_auth_schema_compatibility()
     try:
         run_seed(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
     except Exception as e:
