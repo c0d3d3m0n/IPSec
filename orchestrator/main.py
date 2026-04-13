@@ -119,7 +119,7 @@ def _ensure_auth_schema_compatibility() -> None:
     if "totp_secret" not in existing_columns:
         statements.append("ALTER TABLE users ADD COLUMN totp_secret VARCHAR")
     if "totp_enabled" not in existing_columns:
-        statements.append("ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0")
+        statements.append("ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE")
     if "failed_attempts" not in existing_columns:
         statements.append("ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0")
     if "locked_until" not in existing_columns:
