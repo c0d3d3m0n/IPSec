@@ -49,11 +49,19 @@ def _get_allowed_origins() -> list[str]:
         "http://localhost:5173",
         "http://localhost:8080",
     ]
-    configured_origins = os.getenv("ALLOWED_ORIGINS")
-    if not configured_origins:
-        return default_origins
-    origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
-    return origins or default_origins
+    configured_origins = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    settings_origins = get_settings().get_cors_origins()
+
+    merged_origins: list[str] = []
+    for origin in [*default_origins, *settings_origins, *configured_origins]:
+        if origin not in merged_origins:
+            merged_origins.append(origin)
+
+    return merged_origins
 
 
 def _ensure_ca_keypair() -> tuple[str, str]:
