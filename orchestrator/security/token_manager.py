@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from jose import jwt, JWTError
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 def _load_certificate_model_module():
@@ -38,8 +40,26 @@ def _load_server_keys() -> tuple[str, str]:
 
     private_path = Path("keys/private_key.pem")
     public_path = Path("keys/public_key.pem")
+
     if not private_path.exists() or not public_path.exists():
-        raise RuntimeError("RSA keys not found for token manager")
+        private_path.parent.mkdir(parents=True, exist_ok=True)
+        public_path.parent.mkdir(parents=True, exist_ok=True)
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+        private_path.write_text(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode("utf-8")
+        )
+        public_path.write_text(
+            key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode("utf-8")
+        )
+        print("Auto-generated JWT RSA keypair for token manager. Set RSA_PRIVATE_KEY/RSA_PUBLIC_KEY in production.")
 
     return private_path.read_text(), public_path.read_text()
 
