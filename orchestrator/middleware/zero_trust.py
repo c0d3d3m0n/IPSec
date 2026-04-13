@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
 from fastapi import Request
@@ -35,7 +37,14 @@ InternalCA = _ca_module.InternalCA
 TrustEvaluator = _trust_module.TrustEvaluator
 
 
+logger = logging.getLogger(__name__)
+
+
 class ZeroTrustMiddleware(BaseHTTPMiddleware):
+    _active_instance: "ZeroTrustMiddleware | None" = None
+    _configured_ca_cert_path: str | None = None
+    _configured_ca_key_path: str | None = None
+
     EXEMPT_PATHS = {
         "/api/auth/login",
         "/api/auth/totp/setup",
@@ -50,14 +59,45 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
-        import os
 
         ca_cert_path = os.getenv("CA_CERT_PATH", "keys/ca.crt")
         ca_key_path = os.getenv("CA_KEY_PATH", "keys/ca.key")
-        self.ca = InternalCA(ca_cert_path=ca_cert_path, ca_key_path=ca_key_path)
+        self.ca = None
         self.trust = TrustEvaluator()
+        self.zt_enabled = False
+        ZeroTrustMiddleware._active_instance = self
+
+        try:
+            self.ca = InternalCA(ca_cert_path=ca_cert_path, ca_key_path=ca_key_path)
+            self.zt_enabled = True
+        except FileNotFoundError:
+            logger.warning(
+                "WARNING: CA cert not found at '%s' — ZeroTrustMiddleware is DISABLED. Generate CA certs and set CA_CERT_PATH + CA_KEY_PATH env vars on Render.",
+                ca_cert_path,
+            )
+
+        if ZeroTrustMiddleware._configured_ca_cert_path and ZeroTrustMiddleware._configured_ca_key_path:
+            self._reinitialize_ca(
+                ZeroTrustMiddleware._configured_ca_cert_path,
+                ZeroTrustMiddleware._configured_ca_key_path,
+            )
+
+    @classmethod
+    def configure_ca(cls, ca_cert_path: str, ca_key_path: str) -> None:
+        cls._configured_ca_cert_path = ca_cert_path
+        cls._configured_ca_key_path = ca_key_path
+        if cls._active_instance is not None:
+            cls._active_instance._reinitialize_ca(ca_cert_path, ca_key_path)
+
+    def _reinitialize_ca(self, ca_cert_path: str, ca_key_path: str) -> None:
+        self.ca = InternalCA(ca_cert_path=ca_cert_path, ca_key_path=ca_key_path)
+        self.zt_enabled = True
+        logger.info("ZeroTrustMiddleware CA reinitialized from %s and %s", ca_cert_path, ca_key_path)
 
     async def dispatch(self, request: Request, call_next):
+        if not self.zt_enabled:
+            return await call_next(request)
+
         path = request.url.path
         if path in self.EXEMPT_PATHS:
             return await call_next(request)

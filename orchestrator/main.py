@@ -2,11 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import importlib.util
+import os
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from orchestrator.database import engine, Base
 from orchestrator.routers import devices, policies, auth
 from orchestrator.routers.compliance import router as compliance_router
@@ -35,10 +41,69 @@ _load_module("orchestrator_models_compliance", _BASE_DIR / "models" / "complianc
 _load_module("orchestrator_models_audit", _BASE_DIR / "models" / "audit.py")
 _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certificate.py")
 
+
+def _get_allowed_origins() -> list[str]:
+    default_origins = [
+        "https://ip-sec.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
+    ]
+    configured_origins = os.getenv("ALLOWED_ORIGINS")
+    if not configured_origins:
+        return default_origins
+    origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
+    return origins or default_origins
+
+
+def _ensure_ca_keypair() -> tuple[str, str]:
+    ca_cert_path = os.getenv("CA_CERT_PATH", "keys/ca.crt")
+    ca_key_path = os.getenv("CA_KEY_PATH", "keys/ca.key")
+    cert_file = Path(ca_cert_path)
+    key_file = Path(ca_key_path)
+
+    if cert_file.exists() and key_file.exists():
+        print(f"CA cert loaded from {ca_cert_path}")
+        return ca_cert_path, ca_key_path
+
+    cert_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "IPSec Internal CA"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "IPSec Framework"),
+    ])
+    now = datetime.now(timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=1))
+        .not_valid_after(now + timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .sign(private_key=private_key, algorithm=hashes.SHA512())
+    )
+
+    cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_file.write_bytes(
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    print("Auto-generated CA keypair at startup — for production, generate offline and mount as secret")
+    return ca_cert_path, ca_key_path
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     settings.validate_runtime_settings()
+    ca_cert_path, ca_key_path = _ensure_ca_keypair()
+    ZeroTrustMiddleware.configure_ca(ca_cert_path, ca_key_path)
     Base.metadata.create_all(bind=engine)
     try:
         run_seed(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
@@ -59,18 +124,19 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS must be registered before auth middleware and before routers so preflight
+# requests receive the headers the browser requires.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_allowed_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 # Zero Trust must wrap routes before downstream middleware behavior.
 app.add_middleware(ZeroTrustMiddleware)
 app.add_middleware(SlowAPIMiddleware)
-
-# CORS (Allow all for now, restrict in production)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().get_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
@@ -96,3 +162,9 @@ async def catch_all(path_name: str):
         "path": path_name,
         "message": "The requested path was not found on this API. Check your prefixes."
     }
+
+
+@app.on_event("startup")
+async def bootstrap_zero_trust_ca():
+    ca_cert_path, ca_key_path = _ensure_ca_keypair()
+    ZeroTrustMiddleware.configure_ca(ca_cert_path, ca_key_path)
