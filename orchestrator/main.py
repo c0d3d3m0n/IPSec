@@ -66,10 +66,28 @@ def _get_allowed_origins() -> list[str]:
 
 
 def _ensure_ca_keypair() -> tuple[str, str]:
-    ca_cert_path = os.getenv("CA_CERT_PATH", "keys/ca.crt")
-    ca_key_path = os.getenv("CA_KEY_PATH", "keys/ca.key")
+    cert_env = os.getenv("CA_CERT_PATH", "keys/ca.crt")
+    key_env = os.getenv("CA_KEY_PATH", "keys/ca.key")
+
+    cert_is_pem = "BEGIN CERTIFICATE" in cert_env
+    key_is_pem = "BEGIN" in key_env and "PRIVATE KEY" in key_env
+
+    ca_cert_path = os.getenv("CA_CERT_FILE_PATH", "keys/ca.crt") if cert_is_pem else cert_env
+    ca_key_path = os.getenv("CA_KEY_FILE_PATH", "keys/ca.key") if key_is_pem else key_env
+
     cert_file = Path(ca_cert_path)
     key_file = Path(ca_key_path)
+
+    if cert_is_pem or key_is_pem:
+        cert_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        if cert_is_pem:
+            cert_file.write_text(cert_env.replace("\\n", "\n"))
+        if key_is_pem:
+            key_file.write_text(key_env.replace("\\n", "\n"))
+        if cert_file.exists() and key_file.exists():
+            print(f"CA keypair loaded from inline env PEM into {ca_cert_path} and {ca_key_path}")
+            return ca_cert_path, ca_key_path
 
     if cert_file.exists() and key_file.exists():
         print(f"CA cert loaded from {ca_cert_path}")

@@ -60,8 +60,10 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
 
-        ca_cert_path = os.getenv("CA_CERT_PATH", "keys/ca.crt")
-        ca_key_path = os.getenv("CA_KEY_PATH", "keys/ca.key")
+        cert_env = os.getenv("CA_CERT_PATH", "keys/ca.crt")
+        key_env = os.getenv("CA_KEY_PATH", "keys/ca.key")
+        ca_cert_path = os.getenv("CA_CERT_FILE_PATH", "keys/ca.crt") if "BEGIN CERTIFICATE" in cert_env else cert_env
+        ca_key_path = os.getenv("CA_KEY_FILE_PATH", "keys/ca.key") if ("BEGIN" in key_env and "PRIVATE KEY" in key_env) else key_env
         self.ca = None
         self.trust = TrustEvaluator()
         self.zt_enabled = False
