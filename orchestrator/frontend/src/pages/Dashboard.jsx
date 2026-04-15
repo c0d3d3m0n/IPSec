@@ -1,410 +1,743 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { 
-  Plus, RefreshCw, LogOut, LayoutDashboard, 
-  Smartphone, Shield, Power, Server, Cpu,
-  Settings, ChevronRight, CheckCircle2, Trash2
+import {
+  Menu,
+  Home,
+  Monitor,
+  ClipboardList,
+  BadgeCheck,
+  Settings,
+  LogOut,
+  Upload,
+  Plus,
+  RefreshCw,
+  ShieldAlert,
+  Server,
 } from 'lucide-react';
+import { ENDPOINTS } from '../config/api';
+import authService from '../services/authService';
+import ToastStack from '../components/ToastStack';
+
+const NAV_ITEMS = [
+  { key: 'dashboard', icon: Home, label: 'Dashboard' },
+  { key: 'devices', icon: Monitor, label: 'Devices' },
+  { key: 'policies', icon: ClipboardList, label: 'Policies' },
+  { key: 'compliance', icon: BadgeCheck, label: 'Compliance' },
+  { key: 'settings', icon: Settings, label: 'Settings' },
+];
 
 function Dashboard({ onLogout }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
   const [policies, setPolicies] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Modals
-  const [showDeviceModal, setShowDeviceModal] = useState(false);
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
-  
-  // Registration Form
-  const [enrollNo, setEnrollNo] = useState('');
-  const [enrollToken, setEnrollToken] = useState('');
+  const [complianceByDevice, setComplianceByDevice] = useState({});
+  const [selectedComplianceDevice, setSelectedComplianceDevice] = useState(null);
 
-  // JSON Upload State
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showUploadResultModal, setShowUploadResultModal] = useState(false);
+
+  const [uploadResult, setUploadResult] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
+  const [toasts, setToasts] = useState([]);
 
-  const token = localStorage.getItem('token');
-  const apiBaseUrl = import.meta.env.VITE_API_URL || ''; 
-  const api = axios.create({
-    baseURL: apiBaseUrl + '/api',
-    headers: { Authorization: `Bearer ${token}` }
+  const [enrollForm, setEnrollForm] = useState({
+    enrollment_number: '',
+    enrollment_token: '',
+    os_fingerprint: '',
+    agent_signature: '',
+    hostname: '',
+    os_type: 'linux',
+    public_ip: '',
   });
 
-  const fetchData = async () => {
-    setLoading(true);
+  const authHeaders = useMemo(() => authService.getAuthHeader(), []);
+
+  const addToast = (type, message) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const dismissToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleApiError = (error, fallback) => {
+    const status = error?.response?.status;
+    const message = error?.response?.data?.detail || fallback;
+    if (status === 401) {
+      addToast('error', 'Session expired. Please login again.');
+      onLogout();
+      return;
+    }
+    addToast('error', message);
+  };
+
+  const pingBackend = async () => {
     try {
-      const [devResp, polResp] = await Promise.all([
-        api.get('/devices/'),
-        api.get('/policies/')
+      await axios.get(ENDPOINTS.ping);
+      setBackendOnline((prev) => {
+        if (!prev) {
+          addToast('success', 'Backend is online');
+        }
+        return true;
+      });
+    } catch {
+      setBackendOnline((prev) => {
+        if (prev) {
+          addToast('error', 'Backend is offline');
+        }
+        return false;
+      });
+    }
+  };
+
+  const fetchComplianceForDevice = async (deviceId) => {
+    try {
+      const response = await axios.get(`${ENDPOINTS.deviceCompliance(deviceId)}?limit=10`, {
+        headers: authService.getAuthHeader(),
+      });
+      return response.data || [];
+    } catch (error) {
+      handleApiError(error, 'Failed to load compliance history');
+      return [];
+    }
+  };
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    await pingBackend();
+
+    try {
+      const [devicesResponse, policiesResponse] = await Promise.all([
+        axios.get(ENDPOINTS.devices, { headers: authHeaders }),
+        axios.get(ENDPOINTS.policies, { headers: authHeaders }),
       ]);
-      setDevices(devResp.data);
-      setPolicies(polResp.data);
-    } catch (err) {
-      console.error(err);
+
+      const deviceList = devicesResponse.data || [];
+      setDevices(deviceList);
+      setPolicies(policiesResponse.data || []);
+
+      const complianceEntries = await Promise.all(
+        deviceList.map(async (device) => ({
+          deviceId: device.id,
+          records: await fetchComplianceForDevice(device.id),
+        }))
+      );
+
+      const complianceMap = {};
+      complianceEntries.forEach(({ deviceId, records }) => {
+        complianceMap[deviceId] = records;
+      });
+      setComplianceByDevice(complianceMap);
+
+      if (!selectedComplianceDevice && deviceList.length > 0) {
+        setSelectedComplianceDevice(deviceList[0].id);
+      }
+    } catch (error) {
+      handleApiError(error, 'Failed to fetch dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchAllData();
+    const intervalId = window.setInterval(fetchAllData, 30000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/devices/register', {
-        enrollment_number: enrollNo.trim(),
-        enrollment_token: enrollToken.trim()
-      });
-      setShowDeviceModal(false);
-      setEnrollNo('');
-      setEnrollToken('');
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Registration failed');
+  const formatRelativeTime = (input) => {
+    if (!input) {
+      return 'Never';
     }
+    const timestamp = new Date(input.endsWith('Z') ? input : `${input}Z`);
+    const deltaSeconds = Math.max(0, Math.floor((Date.now() - timestamp.getTime()) / 1000));
+
+    if (deltaSeconds < 60) return `${deltaSeconds}s ago`;
+    if (deltaSeconds < 3600) return `${Math.floor(deltaSeconds / 60)} min ago`;
+    if (deltaSeconds < 86400) return `${Math.floor(deltaSeconds / 3600)} h ago`;
+    return `${Math.floor(deltaSeconds / 86400)} d ago`;
   };
 
-  const handleUploadJson = async (e) => {
-    e.preventDefault();
-    if (!uploadFile) return;
+  const formatBytes = (value) => {
+    const bytes = Number(value || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
 
-    const formData = new FormData();
-    formData.append('file', uploadFile);
+  const getDeviceComplianceInfo = (deviceId) => {
+    const records = complianceByDevice[deviceId] || [];
+    if (records.length === 0) {
+      return { label: 'No data', tone: 'neutral', leakDetected: false };
+    }
 
-    try {
-      const resp = await api.post('/policies/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+    const latest = records[0];
+    const leakDetected = records.some((r) => r.plaintext_leak_detected);
+
+    if (latest.is_compliant) {
+      return { label: 'Compliant', tone: 'success', leakDetected };
+    }
+    return { label: 'Violations', tone: 'danger', leakDetected };
+  };
+
+  const summary = useMemo(() => {
+    const total = devices.length;
+    const active = devices.filter((d) => d.is_active).length;
+    const compliant = devices.filter((d) => (complianceByDevice[d.id]?.[0]?.is_compliant)).length;
+
+    let violations24h = 0;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    Object.values(complianceByDevice).forEach((records) => {
+      (records || []).forEach((record) => {
+        const at = new Date(record.timestamp).getTime();
+        if (at >= cutoff && !record.is_compliant) {
+          violations24h += 1;
+        }
       });
-      alert(resp.data.message);
-      setShowPolicyModal(false);
-      setUploadFile(null);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Policy upload failed');
+    });
+
+    return {
+      total,
+      active,
+      compliant,
+      policies: policies.length,
+      violations24h,
+    };
+  }, [devices, complianceByDevice, policies]);
+
+  const handleEnrollDevice = async (event) => {
+    event.preventDefault();
+    try {
+      await axios.post(ENDPOINTS.enrollDevice, enrollForm, {
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+      });
+      addToast('success', 'Device enrolled successfully');
+      setShowEnrollModal(false);
+      setEnrollForm({
+        enrollment_number: '',
+        enrollment_token: '',
+        os_fingerprint: '',
+        agent_signature: '',
+        hostname: '',
+        os_type: 'linux',
+        public_ip: '',
+      });
+      fetchAllData();
+    } catch (error) {
+      handleApiError(error, 'Failed to enroll device');
     }
   };
 
   const handleAssignPolicy = async (deviceId, policyId) => {
     try {
-      if (policyId === "") {
-        await api.delete(`/policies/unassign/${deviceId}`);
+      if (!policyId) {
+        await axios.delete(ENDPOINTS.unassignPolicy(deviceId), {
+          headers: authService.getAuthHeader(),
+        });
+        addToast('success', 'Policy unassigned');
       } else {
-        await api.post(`/policies/${policyId}/assign/${deviceId}`);
+        await axios.post(
+          ENDPOINTS.assignPolicy(policyId, deviceId),
+          {},
+          { headers: authService.getAuthHeader() }
+        );
+        addToast('success', 'Policy assigned');
       }
-      fetchData();
-    } catch (err) {
-      alert('Failed to update policy assignment');
+      fetchAllData();
+    } catch (error) {
+      handleApiError(error, 'Failed to update policy assignment');
     }
   };
 
-  const handleDeletePolicy = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this policy? This will unassign it from all devices.')) return;
+  const handleDeletePolicy = async (policyId) => {
     try {
-      await api.delete(`/policies/${id}`);
-      fetchData();
-    } catch (err) {
-      alert('Failed to delete policy');
+      await axios.delete(ENDPOINTS.policyById(policyId), {
+        headers: authService.getAuthHeader(),
+      });
+      addToast('success', 'Policy deleted successfully');
+      fetchAllData();
+    } catch (error) {
+      handleApiError(error, 'Failed to delete policy');
     }
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
-      {/* Sidebar */}
-      <div style={{ 
-        width: '280px', 
-        borderRight: '1px solid var(--glass-border)', 
-        padding: '2rem',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'rgba(15, 23, 42, 0.5)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '3rem' }}>
-          <div style={{ padding: '8px', background: 'var(--primary)', borderRadius: '10px' }}>
-            <Shield size={24} color="white" />
-          </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>IPsec Console</h2>
+  const handleUploadPolicy = async (event) => {
+    event.preventDefault();
+    if (!uploadFile) {
+      addToast('warning', 'Select a JSON file first');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+
+    try {
+      const response = await axios.post(ENDPOINTS.uploadPolicy, formData, {
+        headers: {
+          ...authService.getAuthHeader(),
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      setUploadResult(response.data || null);
+      setShowUploadResultModal(true);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      addToast('success', 'Policy upload completed');
+      fetchAllData();
+    } catch (error) {
+      const data = error?.response?.data;
+      setUploadResult({
+        errors: data?.errors || [data?.detail || 'Policy upload failed'],
+        warnings: data?.warnings || [],
+      });
+      setShowUploadResultModal(true);
+      handleApiError(error, 'Policy upload failed');
+    }
+  };
+
+  const getAssignedCount = (policyId) => devices.filter((d) => d.policy_id === policyId).length;
+
+  const renderSidebar = () => (
+    <aside className={`sidebar glass-surface ${mobileNavOpen ? 'open' : ''}`}>
+      <div className="sidebar-brand">
+        <span className="brand-icon" role="img" aria-label="lock">
+          🔐
+        </span>
+        <div>
+          <h2>IPsec ZT</h2>
+          <small>Zero Trust Console</small>
         </div>
-
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <div 
-            onClick={() => setActiveTab('overview')}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px', 
-              padding: '12px', 
-              background: activeTab === 'overview' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', 
-              borderRadius: '12px',
-              color: activeTab === 'overview' ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: 500,
-              cursor: 'pointer'
-            }}
-          >
-            <LayoutDashboard size={20} />
-            Overview
-          </div>
-          <div 
-            onClick={() => setActiveTab('policies')}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px', 
-              padding: '12px', 
-              background: activeTab === 'policies' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', 
-              borderRadius: '12px',
-              color: activeTab === 'policies' ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: 500,
-              cursor: 'pointer'
-            }}
-          >
-            <Server size={20} />
-            Policies
-          </div>
-        </nav>
-
-        <button onClick={onLogout} style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
-          padding: '12px', 
-          color: 'var(--danger)', 
-          background: 'none', 
-          border: 'none', 
-          cursor: 'pointer',
-          fontWeight: 500
-        }}>
-          <LogOut size={20} />
-          Sign Out
-        </button>
       </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, padding: '3rem', position: 'relative' }}>
-        <div className="glow" style={{ top: '-10%', right: '10%', width: '600px', height: '600px', background: 'var(--accent)', opacity: 0.1 }} />
+      <nav className="nav-list">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.key}
+              className={`nav-item ${activeTab === item.key ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab(item.key);
+                setMobileNavOpen(false);
+              }}
+            >
+              <Icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
-        {activeTab === 'overview' ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+      <div className="sidebar-footer">
+        <div className="backend-status">
+          <span className={`status-dot ${backendOnline ? 'online' : 'offline'}`} />
+          <span>{backendOnline ? 'Online' : 'Offline'}</span>
+        </div>
+        <div className="sidebar-user">admin</div>
+        <button className="btn btn-secondary" onClick={onLogout}>
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
+      </div>
+    </aside>
+  );
+
+  const renderSummaryCards = () => {
+    const cards = [
+      { label: 'Total Devices', value: summary.total, tone: 'primary' },
+      { label: 'Active Devices', value: summary.active, tone: 'success' },
+      { label: 'Compliant Devices', value: summary.compliant, tone: 'success' },
+      { label: 'Policies', value: summary.policies, tone: 'primary' },
+      {
+        label: 'Violations (24h)',
+        value: summary.violations24h,
+        tone: summary.violations24h > 0 ? 'danger' : 'neutral',
+      },
+    ];
+
+    return (
+      <div className="summary-grid">
+        {cards.map((card) => (
+          <article key={card.label} className={`summary-card glass-surface tone-${card.tone}`}>
+            <div className="summary-icon"><Server size={22} /></div>
+            <div className="summary-value">{card.value}</div>
+            <div className="summary-label">{card.label}</div>
+          </article>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDevices = () => (
+    <section className="card-grid two-col">
+      {devices.map((device) => {
+        const compliance = getDeviceComplianceInfo(device.id);
+
+        return (
+          <article key={device.id} className="entity-card glass-surface interactive-card">
+            <div className="card-head">
               <div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>Fleet Manager</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Monitoring {devices.length} network endpoints</p>
+                <h3>{device.hostname || device.enrollment_number || `Device ${device.id}`}</h3>
+                <div className="mono-text">last_seen: {formatRelativeTime(device.last_seen)}</div>
               </div>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  onClick={fetchData} 
-                  className="btn" 
-                  disabled={loading}
-                  style={{ background: 'var(--glass)', border: '1px solid var(--glass-border)', color: 'white', opacity: loading ? 0.7 : 1 }}
-                >
-                  <RefreshCw size={18} style={{ 
-                    marginRight: '8px', 
-                    verticalAlign: 'middle',
-                    animation: loading ? 'spin 2s linear infinite' : 'none'
-                  }} />
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </button>
-                <button onClick={() => setShowDeviceModal(true)} className="btn btn-primary">
-                  <Plus size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                  Pre-activate Device
-                </button>
-              </div>
+              <span className={`chip os-${(device.os_type || 'unknown').toLowerCase()}`}>{device.os_type || 'unknown'}</span>
             </div>
 
-            {/* Stats Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-              {[
-                { 
-                  label: 'Online Endpoints', 
-                  val: devices.filter(d => d.last_seen && (new Date() - new Date(d.last_seen.endsWith('Z') ? d.last_seen : d.last_seen + 'Z') < 60000)).length, 
-                  icon: Power, 
-                  color: 'var(--success)' 
-                },
-                { label: 'Pending Setup', val: devices.filter(d => d.status === 'PENDING').length, icon: Smartphone, color: 'var(--primary)' },
-                { label: 'Total Policies', val: policies.length, icon: Shield, color: 'var(--accent)' }
-              ].map((stat, i) => (
-                <div key={i} className="glass-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                  <div style={{ padding: '12px', background: `${stat.color}15`, color: stat.color, borderRadius: '12px' }}>
-                    <stat.icon size={28} />
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{stat.label}</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{stat.val}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Device Table */}
-            <div className="glass-card" style={{ overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <tr>
-                    {['Identifier', 'Platform', 'Status', 'Assigned Policy', 'Actions'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '1.25rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {devices.map((device) => {
-                    const lastSeenStr = device.last_seen ? (device.last_seen.endsWith('Z') ? device.last_seen : device.last_seen + 'Z') : null;
-                    const lastSeen = lastSeenStr ? new Date(lastSeenStr) : null;
-                    const isOnline = lastSeen && (new Date() - lastSeen < 60000); // 1 minute threshold
-                    const status = device.status === 'PENDING' ? 'PENDING' : (isOnline ? 'ONLINE' : 'OFFLINE');
-
-                    return (
-                      <tr key={device.id} style={{ borderTop: '1px solid var(--glass-border)' }}>
-                        <td style={{ padding: '1.25rem 1.5rem' }}>
-                          <div style={{ fontWeight: 600 }}>{device.enrollment_number}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            {device.hostname || 'Unregistered'}
-                            {isOnline && <span style={{ marginLeft: '8px', color: 'var(--success)', fontSize: '0.6rem' }}>●</span>}
-                          </div>
-                        </td>
-                        <td style={{ padding: '1.25rem 1.5rem' }}>{device.os_type || 'N/A'}</td>
-                        <td style={{ padding: '1.25rem 1.5rem' }}>
-                          <span style={{ 
-                            padding: '4px 10px', 
-                            borderRadius: '100px', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 600,
-                            background: status === 'ONLINE' ? 'var(--success)20' : 
-                                       status === 'PENDING' ? 'var(--primary)20' : 'var(--danger)20',
-                            color: status === 'ONLINE' ? 'var(--success)' : 
-                                   status === 'PENDING' ? 'var(--primary)' : 'var(--danger)'
-                          }}>
-                            {status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1.25rem 1.5rem' }}>
-                        <select 
-                          className="input-field" 
-                          style={{ padding: '8px', fontSize: '0.85rem' }}
-                          value={device.policy_id || ''}
-                          onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
-                        >
-                          <option value="">No Policy</option>
-                          {policies.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+            <div className="device-meta">
+              <div><strong>Status:</strong> {device.status || 'unknown'}</div>
+              <div><strong>Active:</strong> {device.is_active ? 'Yes' : 'No'}</div>
               <div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>IPsec Policies</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Define secure tunnel configurations for your fleet</p>
+                <strong>Compliance:</strong>
+                <span className={`chip compliance-${compliance.tone}`}>{compliance.label}</span>
               </div>
-              <button onClick={() => setShowPolicyModal(true)} className="btn btn-primary">
-                <Plus size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                Upload Policies JSON
+            </div>
+
+            {compliance.leakDetected ? (
+              <div className="leak-alert">⚠ Plaintext leak detected</div>
+            ) : null}
+
+            <div className="device-controls">
+              <select
+                className="input-field"
+                value={device.policy_id || ''}
+                onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
+              >
+                <option value="">Select policy</option>
+                {policies.map((policy) => (
+                  <option key={policy.id} value={policy.id}>
+                    {policy.name}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-secondary" onClick={() => handleAssignPolicy(device.id, '')}>
+                Unassign
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+
+  const renderPolicies = () => (
+    <section className="card-grid two-col">
+      {policies.map((policy) => {
+        const targetOS = policy?.config_data?.target?.os || [];
+        const crypto = policy?.config_data?.ipsec_policy?.crypto || {};
+        const ike = crypto.ike || {};
+        const esp = crypto.esp || {};
+
+        return (
+          <article key={policy.id} className="entity-card glass-surface interactive-card">
+            <div className="card-head">
+              <div>
+                <h3>{policy.name}</h3>
+                <p className="sub-text">{policy.description || 'No description'}</p>
+              </div>
+              <button className="btn btn-danger" onClick={() => handleDeletePolicy(policy.id)}>
+                Delete
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
-              {policies.map(policy => (
-                <div key={policy.id} className="glass-card" style={{ padding: '2rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{policy.name}</h3>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{policy.description}</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <div style={{ padding: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: '8px' }}>
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <button 
-                        onClick={() => handleDeletePolicy(policy.id)}
-                        style={{ padding: '8px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px' }}>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Local Network</div>
-                      <div style={{ fontWeight: 500 }}>{policy.config_data?.ipsec_policy?.connections?.[0]?.local_subnet || 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Remote Network</div>
-                      <div style={{ fontWeight: 500 }}>{policy.config_data?.ipsec_policy?.connections?.[0]?.remote_subnet || 'N/A'}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Policy ID: {policy.config_data?.policy_id || policy.name}
-                  </div>
-                </div>
-              ))}
-              {policies.length === 0 && (
-                <div style={{ gridColumn: 'span 2', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  No policies defined. Create one to start securing your devices.
-                </div>
-              )}
+            <div className="policy-meta">
+              <div><strong>Version:</strong> {policy?.config_data?.version || 'N/A'}</div>
+              <div><strong>Created:</strong> {new Date(policy.created_at).toLocaleString()}</div>
+              <div><strong>Assigned Devices:</strong> {getAssignedCount(policy.id)}</div>
             </div>
-          </>
-        )}
+
+            <div className="chip-row">
+              {targetOS.length ? targetOS.map((os) => (
+                <span key={`${policy.id}-${os}`} className={`chip os-${String(os).toLowerCase()}`}>{os}</span>
+              )) : <span className="chip os-unknown">No target OS</span>}
+            </div>
+
+            <div className="algo-block mono-text">IKE: {ike.encryption || 'N/A'} / {ike.integrity || 'N/A'} / {ike.dh_group || 'N/A'}</div>
+            <div className="algo-block mono-text">ESP: {esp.encryption || 'N/A'} / {esp.integrity || 'N/A'} / {esp.dh_group || 'N/A'}</div>
+          </article>
+        );
+      })}
+    </section>
+  );
+
+  const selectedTimeline = complianceByDevice[selectedComplianceDevice] || [];
+
+  const renderComplianceTimeline = () => (
+    <section className="glass-surface timeline-wrap">
+      <div className="timeline-head">
+        <h3>Compliance Timeline</h3>
+        <select
+          className="input-field"
+          value={selectedComplianceDevice || ''}
+          onChange={(e) => setSelectedComplianceDevice(Number(e.target.value) || null)}
+        >
+          <option value="">Select device</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.hostname || device.enrollment_number || `Device ${device.id}`}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Device Registration Modal */}
-      {showDeviceModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
-          <div className="glass-card" style={{ padding: '2.5rem', width: '100%', maxWidth: '400px', background: '#0f172a' }}>
-            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Pre-activate Device</h2>
-            <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Enrollment Number</label>
-                <input className="input-field" value={enrollNo} onChange={e => setEnrollNo(e.target.value)} required />
+      <div className="timeline-list">
+        {selectedTimeline.map((record, index) => {
+          const violations = record?.raw_report?.violations || [];
+          return (
+            <article key={`${record.timestamp}-${index}`} className={`timeline-item ${record.is_compliant ? 'ok' : 'bad'}`}>
+              <div className="timeline-top">
+                <span className="mono-text">{new Date(record.timestamp).toLocaleString()}</span>
+                <span className={`chip compliance-${record.is_compliant ? 'success' : 'danger'}`}>
+                  {record.is_compliant ? 'Compliant' : 'Violation'}
+                </span>
               </div>
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Secret Activation Token</label>
-                <input className="input-field" type="password" value={enrollToken} onChange={e => setEnrollToken(e.target.value)} required />
+              <div className="timeline-metrics">
+                <span>Total encrypted: {formatBytes(record.total_bytes_encrypted)}</span>
+                <span>Active SAs: {record.active_sa_count ?? (record.active_sas?.length || 0)}</span>
               </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setShowDeviceModal(false)} className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Register</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              {violations.length > 0 ? (
+                <ul className="violations-list">
+                  {violations.map((violation, vIndex) => (
+                    <li key={`${record.timestamp}-${vIndex}`}>{String(violation)}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
 
-      {/* Policy JSON Upload Modal */}
-      {showPolicyModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
-          <div className="glass-card" style={{ padding: '2.5rem', width: '100%', maxWidth: '500px', background: '#0f172a' }}>
-            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Upload Policies</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Upload a JSON file containing the policies and their device assignments.
-            </p>
-            <form onSubmit={handleUploadJson} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <input 
-                  type="file" 
-                  accept=".json,application/json"
-                  className="input-field" 
-                  onChange={e => setUploadFile(e.target.files[0])} 
-                  required 
-                />
+        {selectedTimeline.length === 0 ? (
+          <div className="empty-state">No compliance records found for this device.</div>
+        ) : null}
+      </div>
+    </section>
+  );
+
+  const renderContent = () => {
+    if (activeTab === 'devices') return renderDevices();
+    if (activeTab === 'policies') return renderPolicies();
+    if (activeTab === 'compliance') return renderComplianceTimeline();
+    if (activeTab === 'settings') {
+      return (
+        <section className="glass-surface settings-card">
+          <h3>Settings</h3>
+          <p className="sub-text">Backend: {backendOnline ? 'Online' : 'Offline'}</p>
+          <p className="sub-text">Theme: Glassmorphism enabled</p>
+        </section>
+      );
+    }
+
+    return (
+      <>
+        {renderSummaryCards()}
+        <h3 className="section-title">Fleet Devices</h3>
+        {renderDevices()}
+      </>
+    );
+  };
+
+  const renderUploadSummary = () => {
+    if (!uploadResult) {
+      return null;
+    }
+
+    const osSummary = uploadResult.os_summary || uploadResult.summary || {};
+    const errors = uploadResult.errors || [];
+    const warnings = uploadResult.warnings || [];
+
+    return (
+      <div className="upload-summary">
+        <h4>Upload Summary</h4>
+        {Object.keys(osSummary).length > 0 ? (
+          <div className="summary-table">
+            {Object.entries(osSummary).map(([os, summaryInfo]) => (
+              <div key={os} className="summary-row">
+                <strong>{os}</strong>
+                <span className="mono-text">{JSON.stringify(summaryInfo)}</span>
               </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => {setShowPolicyModal(false); setUploadFile(null);}} className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Upload JSON</button>
+            ))}
+          </div>
+        ) : null}
+
+        {errors.length > 0 ? (
+          <div className="upload-errors">
+            <h5>Errors</h5>
+            <ul>{errors.map((e, i) => <li key={`e-${i}`}>{String(e)}</li>)}</ul>
+          </div>
+        ) : null}
+
+        {warnings.length > 0 ? (
+          <div className="upload-warnings">
+            <h5>Warnings</h5>
+            <ul>{warnings.map((w, i) => <li key={`w-${i}`}>{String(w)}</li>)}</ul>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  return (
+    <div className="app-shell">
+      {renderSidebar()}
+
+      <main className="main-content">
+        <header className="top-bar glass-surface">
+          <div className="top-left">
+            <button className="icon-btn mobile-menu-btn" onClick={() => setMobileNavOpen((prev) => !prev)}>
+              <Menu size={20} />
+            </button>
+            <h1>{NAV_ITEMS.find((item) => item.key === activeTab)?.label || 'Dashboard'}</h1>
+          </div>
+
+          <div className="top-actions">
+            <button className="btn btn-secondary" onClick={fetchAllData}>
+              <RefreshCw size={16} />
+              <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
+              <Plus size={16} />
+              <span>Enroll Device</span>
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+              <Upload size={16} />
+              <span>Upload Policy</span>
+            </button>
+          </div>
+        </header>
+
+        {renderContent()}
+      </main>
+
+      <nav className="mobile-bottom-nav glass-surface">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={`mobile-${item.key}`}
+              className={`mobile-nav-item ${activeTab === item.key ? 'active' : ''}`}
+              onClick={() => setActiveTab(item.key)}
+            >
+              <Icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {showEnrollModal ? (
+        <div className="modal-overlay">
+          <div className="modal glass-surface">
+            <h3>Enroll Device</h3>
+            <form className="stack-form" onSubmit={handleEnrollDevice}>
+              <input
+                className="input-field"
+                placeholder="Enrollment number"
+                value={enrollForm.enrollment_number}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_number: e.target.value }))}
+                required
+              />
+              <input
+                className="input-field"
+                placeholder="Enrollment token"
+                value={enrollForm.enrollment_token}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_token: e.target.value }))}
+                required
+              />
+              <input
+                className="input-field"
+                placeholder="OS fingerprint"
+                value={enrollForm.os_fingerprint}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, os_fingerprint: e.target.value }))}
+                required
+              />
+              <input
+                className="input-field"
+                placeholder="Agent signature"
+                value={enrollForm.agent_signature}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, agent_signature: e.target.value }))}
+                required
+              />
+              <input
+                className="input-field"
+                placeholder="Hostname"
+                value={enrollForm.hostname}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, hostname: e.target.value }))}
+              />
+              <input
+                className="input-field"
+                placeholder="Public IP"
+                value={enrollForm.public_ip}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, public_ip: e.target.value }))}
+              />
+              <select
+                className="input-field"
+                value={enrollForm.os_type}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, os_type: e.target.value }))}
+              >
+                <option value="linux">linux</option>
+                <option value="windows">windows</option>
+                <option value="macos">macos</option>
+              </select>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" type="button" onClick={() => setShowEnrollModal(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" type="submit">Submit</button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
+
+      {showUploadModal ? (
+        <div className="modal-overlay">
+          <div className="modal glass-surface">
+            <h3>Upload Policy JSON</h3>
+            <form className="stack-form" onSubmit={handleUploadPolicy}>
+              <input
+                className="input-field"
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                required
+              />
+              <div className="modal-actions">
+                <button className="btn btn-secondary" type="button" onClick={() => setShowUploadModal(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" type="submit">Upload</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showUploadResultModal ? (
+        <div className="modal-overlay">
+          <div className="modal glass-surface">
+            {renderUploadSummary()}
+            <div className="modal-actions">
+              <button className="btn btn-primary" type="button" onClick={() => setShowUploadResultModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

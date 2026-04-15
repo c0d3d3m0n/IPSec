@@ -1,0 +1,32 @@
+:root {
+  --bg-base: #0a0f1e;
+  --bg-secondary: #0d1528;
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(16px);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --accent-primary: #00d4ff;
+  --accent-secondary: #7b61ff;
+  --accent-success: #00ff9d;
+  --accent-danger: #ff4466;
+  --accent-warning: #ffb547;
+
+  --glow-primary: 0 0 20px rgba(0, 212, 255, 0.3);
+  --glow-success: 0 0 20px rgba(0, 255, 157, 0.3);
+  --glow-danger: 0 0 20px rgba(255, 68, 102, 0.3);
+
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-muted: rgba(255, 255, 255, 0.3);
+
+  --font-main: 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}

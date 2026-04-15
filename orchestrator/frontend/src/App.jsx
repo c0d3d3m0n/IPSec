@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import authService from './services/authService';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [authenticated, setAuthenticated] = useState(authService.isAuthenticated());
 
-  const handleLogin = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
+  const handleLogin = () => {
+    setAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
+    authService.logout();
+    setAuthenticated(false);
   };
 
   return (
@@ -21,11 +21,11 @@ function App() {
       <Routes>
         <Route 
           path="/login" 
-          element={!token ? <Login onLogin={handleLogin} /> : <Navigate to="/" />} 
+          element={!authenticated ? <Login onLogin={handleLogin} /> : <Navigate to="/" />} 
         />
         <Route 
           path="/" 
-          element={token ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/login" />} 
+          element={authenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/login" />} 
         />
       </Routes>
     </Router>
