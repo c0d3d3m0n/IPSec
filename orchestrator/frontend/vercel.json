@@ -1,3 +1,7 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://ipsec-lcir.onrender.com/api/$1" },
+    { "source": "/health", "destination": "https://ipsec-lcir.onrender.com/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
