@@ -108,6 +108,12 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
         if path in self.EXEMPT_PATHS:
             return await call_next(request)
 
+        authorization = request.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer ") and (
+            path.startswith("/api/devices") or path.startswith("/api/policies")
+        ):
+            return await call_next(request)
+
         cert_obj = request.scope.get("tls_client_cert")
         cert_pem: bytes | None = None
         if isinstance(cert_obj, bytes):
