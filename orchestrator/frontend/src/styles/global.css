@@ -757,6 +757,14 @@ body {
   background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.landing-brand {
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 

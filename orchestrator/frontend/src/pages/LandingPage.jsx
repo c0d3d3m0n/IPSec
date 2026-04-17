@@ -13,6 +13,7 @@ function LandingPage() {
         </div>
 
         <h1 className="landing-title">Unified IPsec Orchestration</h1>
+        <p className="landing-brand">IPsec Vault</p>
 
         <p className="landing-subtitle">
           Zero Trust policy enforcement across Windows, Linux and macOS - from one place.
