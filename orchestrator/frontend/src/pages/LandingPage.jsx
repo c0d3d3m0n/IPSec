@@ -24,7 +24,7 @@ function LandingPage() {
           </button>
           <a
             className="btn btn-secondary landing-action-secondary"
-            href="https://ipsec-lcir.onrender.com/docs"
+            href="https://api.ipsecvault.tech/docs"
             target="_blank"
             rel="noreferrer"
           >
