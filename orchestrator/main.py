@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
 import importlib.util
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -21,6 +23,7 @@ from orchestrator.seed_admin import seed_admin as run_seed
 from orchestrator.config import get_settings
 from orchestrator.rate_limiter import limiter
 from orchestrator.middleware.zero_trust import ZeroTrustMiddleware
+from orchestrator.middleware.csrf_guard import CSRFMiddleware
 
 
 def _load_module(module_name: str, file_path: Path):
@@ -46,6 +49,8 @@ _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certific
 def _get_allowed_origins() -> list[str]:
     default_origins = [
         "https://ip-sec.vercel.app",
+        "https://ipsecvault.tech",
+        "https://www.ipsecvault.tech",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8080",
@@ -63,6 +68,43 @@ def _get_allowed_origins() -> list[str]:
             merged_origins.append(origin)
 
     return merged_origins
+
+
+def _normalize_host(value: str) -> str:
+    parsed = urlparse(value if "://" in value else f"https://{value}")
+    host = parsed.netloc or parsed.path
+    return host.split(":")[0].strip().lower()
+
+
+def _get_allowed_hosts() -> list[str]:
+    default_hosts = [
+        "ipsec-lcir.onrender.com",
+        "api.ipsecvault.tech",
+        "ipsecvault.tech",
+        "www.ipsecvault.tech",
+        "localhost",
+        "127.0.0.1",
+    ]
+
+    configured = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip()]
+    merged: list[str] = []
+
+    for host in [*default_hosts, *configured]:
+        normalized = _normalize_host(host)
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+
+    return merged
+
+
+def _get_csrf_trusted_origins(allowed_origins: list[str]) -> list[str]:
+    configured = [origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
+    trusted: list[str] = []
+    for origin in [*allowed_origins, *configured]:
+        normalized = origin.rstrip("/")
+        if normalized and normalized not in trusted:
+            trusted.append(normalized)
+    return trusted
 
 
 def _ensure_ca_keypair() -> tuple[str, str]:
@@ -182,15 +224,24 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+allowed_origins = _get_allowed_origins()
+allowed_hosts = _get_allowed_hosts()
+csrf_trusted_origins = _get_csrf_trusted_origins(allowed_origins)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
 # CORS must be registered before auth middleware and before routers so preflight
 # requests receive the headers the browser requires.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_allowed_origins(),
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# CSRF-style origin checks for browser unsafe methods while allowing non-browser clients.
+app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
 
 # Zero Trust must wrap routes before downstream middleware behavior.
 app.add_middleware(ZeroTrustMiddleware)
