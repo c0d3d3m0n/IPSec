@@ -783,6 +783,35 @@ body {
   text-decoration: none;
 }
 
+.landing-metrics {
+  margin-top: 24px;
+  width: min(960px, 100%);
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.landing-metric-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.landing-metric-item strong {
+  color: var(--accent-primary);
+  font-size: 1rem;
+}
+
+.landing-metric-item span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .landing-features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -819,6 +848,30 @@ body {
 
 .landing-feature-body {
   font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.landing-content-strip {
+  margin: 0 auto;
+  width: min(1000px, calc(100% - 80px));
+  padding: 24px;
+  margin-bottom: 30px;
+}
+
+.landing-content-strip h2 {
+  font-size: 1.25rem;
+  margin-bottom: 10px;
+}
+
+.landing-content-strip p {
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 10px;
+}
+
+.landing-content-strip ul {
+  padding-left: 18px;
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -1019,5 +1072,15 @@ body {
   .landing-features {
     grid-template-columns: 1fr;
     padding: 0 20px 50px;
+  }
+
+  .landing-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-content-strip {
+    width: calc(100% - 40px);
+    padding: 18px;
+    margin-bottom: 20px;
   }
 }

@@ -30,6 +30,29 @@ function LandingPage() {
           >
             View API Docs
           </a>
+          <a
+            className="btn btn-secondary landing-action-secondary"
+            href="https://github.com/c0d3d3m0n/IPSec.git"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Repository
+          </a>
+        </div>
+
+        <div className="landing-metrics glass-surface">
+          <div className="landing-metric-item">
+            <strong>3</strong>
+            <span>Supported OS Targets</span>
+          </div>
+          <div className="landing-metric-item">
+            <strong>Zero Trust</strong>
+            <span>mTLS + Continuous Trust Scoring</span>
+          </div>
+          <div className="landing-metric-item">
+            <strong>SHA-512</strong>
+            <span>Tamper-Evident Audit Integrity</span>
+          </div>
         </div>
       </div>
 
@@ -57,6 +80,19 @@ function LandingPage() {
             SA counter polling, plaintext leak detection, and tamper-evident SHA-512 audit chain.
           </p>
         </article>
+      </section>
+
+      <section className="landing-content-strip glass-surface">
+        <h2>Why Security Teams Use IPsec Vault</h2>
+        <p>
+          Move from fragmented, manual tunnel operations to policy-driven automation with strong identity,
+          measurable compliance, and platform-native config generation from a single control plane.
+        </p>
+        <ul>
+          <li>Centralized policy lifecycle with versioning and controlled rollout.</li>
+          <li>Continuous posture telemetry: heartbeat, SA status, and leak alerts.</li>
+          <li>Operationally simple deployment on Vercel + Render with API-first workflows.</li>
+        </ul>
       </section>
 
       <footer className="landing-footer">Built with FastAPI · PostgreSQL · Docker · Render</footer>
