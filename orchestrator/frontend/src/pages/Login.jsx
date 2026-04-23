@@ -38,10 +38,18 @@ function Login({ onLogin }) {
       const status = err?.response?.status;
       const detail = String(err?.response?.data?.detail || '').toLowerCase();
 
-      if (status === 422 && detail.includes('totp')) {
+      if ((status === 422 || status === 401) && detail.includes('totp')) {
         setShowTotp(true);
-        setError('TOTP verification is required to continue.');
-        addToast('warning', 'Enter your TOTP code and submit again.');
+        if (detail.includes('required')) {
+          setError('TOTP verification is required to continue.');
+          addToast('warning', 'Enter your TOTP code and submit again.');
+        } else if (detail.includes('invalid')) {
+          setError('Invalid TOTP code. Please try again.');
+          addToast('error', 'Invalid TOTP code. Please try again.');
+        } else {
+          setError('TOTP verification failed.');
+          addToast('error', 'TOTP verification failed.');
+        }
       } else if (status === 401) {
         setError('Invalid credentials');
         addToast('error', 'Invalid credentials');
