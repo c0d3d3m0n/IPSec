@@ -232,11 +232,11 @@ app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
 
 # CORS must be the outermost middleware so preflight requests and short-circuit
 # responses still get the access-control headers browsers require.
-# TEMPORARY: Testing with allow_origins=["*"] to isolate CORS config issues
+# TEMPORARY: Testing with allow_origins=["*"] - NOTE: cannot use with allow_credentials=True
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Temporarily allow all to test if CORS works at all
-    allow_credentials=True,
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
