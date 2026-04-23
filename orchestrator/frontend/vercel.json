@@ -1,7 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://ipsec-lcir.onrender.com/api/$1" },
-    { "source": "/health", "destination": "https://ipsec-lcir.onrender.com/health" },
+    { "source": "/api/(.*)", "destination": "https://api.ipsecvault.tech/api/$1" },
+    { "source": "/health", "destination": "https://api.ipsecvault.tech/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
