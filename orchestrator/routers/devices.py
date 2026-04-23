@@ -41,6 +41,24 @@ _cert_models_module = _load_module("orchestrator_models_certificate", _BASE_DIR 
 InternalCA = _ca_module.InternalCA
 DeviceCertificate = _cert_models_module.DeviceCertificate
 
+
+def _safe_serialize_device(device: models.Device) -> dict:
+    return {
+        "id": device.id,
+        "hostname": device.hostname,
+        "os_type": device.os_type,
+        "public_ip": device.public_ip,
+        "enrollment_number": device.enrollment_number,
+        "enrollment_token": device.enrollment_token,
+        "os_fingerprint": device.os_fingerprint,
+        "status": device.status,
+        "is_active": device.is_active,
+        "last_seen": device.last_seen,
+        "policy_id": device.policy_id,
+        "policy": None,
+        "created_at": device.created_at,
+    }
+
 @router.post("/enroll", response_model=schemas.DeviceEnrollmentResponse)
 @limiter.limit("5/minute")
 def enroll_device(request: Request, device: schemas.DeviceCreate, db: Session = Depends(database.get_db)):
@@ -110,7 +128,7 @@ def enroll_device(request: Request, device: schemas.DeviceCreate, db: Session = 
 
     ca_cert_pem = Path(ca_cert_path).read_text()
     return {
-        **schemas.Device.model_validate(db_device).model_dump(mode="json"),
+        **_safe_serialize_device(db_device),
         "cert_pem": cert_pem.decode("utf-8"),
         "private_key_pem": private_key_pem.decode("utf-8"),
         "ca_cert_pem": ca_cert_pem,
@@ -124,7 +142,7 @@ def read_devices(
     current_user: models.User = Depends(get_current_admin_user)
 ):
     devices = db.query(models.Device).offset(skip).limit(limit).all()
-    return [schemas.Device.model_validate(device).model_dump(mode="json") for device in devices]
+    return [_safe_serialize_device(device) for device in devices]
 
 @router.post("/register", response_model=schemas.Device)
 def register_device(
@@ -154,7 +172,7 @@ def register_device(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Device enrollment number or token already exists")
-    return schemas.Device.model_validate(new_device).model_dump(mode="json")
+    return _safe_serialize_device(new_device)
 
 @router.get("/{device_id}", response_model=schemas.Device)
 def read_device(
@@ -165,7 +183,7 @@ def read_device(
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    return schemas.Device.model_validate(device).model_dump(mode="json")
+    return _safe_serialize_device(device)
 
 @router.get("/{device_id}/config")
 def get_device_config(
