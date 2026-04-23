@@ -195,6 +195,11 @@ async def lifespan(app: FastAPI):
     ZeroTrustMiddleware.configure_ca(ca_cert_path, ca_key_path)
     Base.metadata.create_all(bind=engine)
     _ensure_auth_schema_compatibility()
+    
+    # DEBUG: Log CORS configuration
+    allowed_origins = _get_allowed_origins()
+    print(f"✅ CORS Allowed Origins: {allowed_origins}")
+    
     try:
         run_seed(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
     except Exception as e:
@@ -227,11 +232,12 @@ app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
 
 # CORS must be the outermost middleware so preflight requests and short-circuit
 # responses still get the access-control headers browsers require.
+# TEMPORARY: Testing with allow_origins=["*"] to isolate CORS config issues
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],  # Temporarily allow all to test if CORS works at all
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
