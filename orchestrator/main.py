@@ -230,9 +230,14 @@ allowed_hosts = _get_allowed_hosts()
 csrf_trusted_origins = _get_csrf_trusted_origins(allowed_origins)
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(ZeroTrustMiddleware)
 
-# CORS must be registered before auth middleware and before routers so preflight
-# requests receive the headers the browser requires.
+# CSRF-style origin checks for browser unsafe methods while allowing non-browser clients.
+app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
+
+# CORS must be the outermost middleware so preflight requests and short-circuit
+# responses still get the access-control headers browsers require.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -240,13 +245,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
-
-# CSRF-style origin checks for browser unsafe methods while allowing non-browser clients.
-app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
-
-# Zero Trust must wrap routes before downstream middleware behavior.
-app.add_middleware(ZeroTrustMiddleware)
-app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
