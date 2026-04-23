@@ -51,11 +51,7 @@ function Dashboard({ onLogout }) {
   const [enrollForm, setEnrollForm] = useState({
     enrollment_number: '',
     enrollment_token: '',
-    os_fingerprint: '',
-    agent_signature: '',
-    hostname: '',
-    os_type: 'linux',
-    public_ip: '',
+    pre_shared_key: '',
   });
 
   const authHeaders = useMemo(() => authService.getAuthHeader(), []);
@@ -221,26 +217,22 @@ function Dashboard({ onLogout }) {
   const handleEnrollDevice = async (event) => {
     event.preventDefault();
     try {
-      await axios.post(ENDPOINTS.enrollDevice, enrollForm, {
+      await axios.post(ENDPOINTS.registerDevice, enrollForm, {
         headers: {
           ...authService.getAuthHeader(),
           'Content-Type': 'application/json',
         },
       });
-      addToast('success', 'Device enrolled successfully');
+      addToast('success', 'Device pre-registered successfully');
       setShowEnrollModal(false);
       setEnrollForm({
         enrollment_number: '',
         enrollment_token: '',
-        os_fingerprint: '',
-        agent_signature: '',
-        hostname: '',
-        os_type: 'linux',
-        public_ip: '',
+        pre_shared_key: '',
       });
       fetchAllData();
     } catch (error) {
-      handleApiError(error, 'Failed to enroll device');
+      handleApiError(error, 'Failed to pre-register device');
     }
   };
 
@@ -711,7 +703,7 @@ function Dashboard({ onLogout }) {
             </button>
             <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
               <Plus size={16} />
-              <span>Enroll Device</span>
+              <span>Pre-register Device</span>
             </button>
             <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
               <Upload size={16} />
@@ -742,7 +734,10 @@ function Dashboard({ onLogout }) {
       {showEnrollModal ? (
         <div className="modal-overlay">
           <div className="modal glass-surface">
-            <h3>Enroll Device</h3>
+            <h3>Pre-register Device</h3>
+            <p className="sub-text">
+              Register the device record first. The agent will use this enrollment number and token later to enroll itself.
+            </p>
             <form className="stack-form" onSubmit={handleEnrollDevice}>
               <input
                 className="input-field"
@@ -760,44 +755,16 @@ function Dashboard({ onLogout }) {
               />
               <input
                 className="input-field"
-                placeholder="OS fingerprint"
-                value={enrollForm.os_fingerprint}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, os_fingerprint: e.target.value }))}
+                placeholder="Pre-shared key"
+                value={enrollForm.pre_shared_key}
+                onChange={(e) => setEnrollForm((prev) => ({ ...prev, pre_shared_key: e.target.value }))}
                 required
               />
-              <input
-                className="input-field"
-                placeholder="Agent signature"
-                value={enrollForm.agent_signature}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, agent_signature: e.target.value }))}
-                required
-              />
-              <input
-                className="input-field"
-                placeholder="Hostname"
-                value={enrollForm.hostname}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, hostname: e.target.value }))}
-              />
-              <input
-                className="input-field"
-                placeholder="Public IP"
-                value={enrollForm.public_ip}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, public_ip: e.target.value }))}
-              />
-              <select
-                className="input-field"
-                value={enrollForm.os_type}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, os_type: e.target.value }))}
-              >
-                <option value="linux">linux</option>
-                <option value="windows">windows</option>
-                <option value="macos">macos</option>
-              </select>
               <div className="modal-actions">
                 <button className="btn btn-secondary" type="button" onClick={() => setShowEnrollModal(false)}>
                   Cancel
                 </button>
-                <button className="btn btn-primary" type="submit">Submit</button>
+                <button className="btn btn-primary" type="submit">Register</button>
               </div>
             </form>
           </div>
