@@ -1,11 +1,10 @@
 const DEV_DEFAULT_BASE = 'http://localhost:8000';
 const configuredBase = (import.meta.env.VITE_API_URL || '').trim();
 
-// In production (Vercel), prefer same-origin paths and proxy via vercel.json rewrites.
-// This avoids browser CORS edge cases from cross-origin requests.
-export const API_BASE = import.meta.env.PROD
-  ? ''
-  : (configuredBase || DEV_DEFAULT_BASE);
+// In production, default directly to the API subdomain unless VITE_API_URL overrides it.
+export const API_BASE = configuredBase || (import.meta.env.PROD
+  ? 'https://api.ipsecvault.tech'
+  : DEV_DEFAULT_BASE);
 
 export const ENDPOINTS = {
   // Auth

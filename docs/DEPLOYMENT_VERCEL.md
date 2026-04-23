@@ -27,10 +27,10 @@ This guide walks you through deploying the **IPsec Console** (React Dashboard) t
 
 ### 3. Environment Variables
 Add the following variable to connect the frontend to the backend:
-- `VITE_API_URL`: Your Render backend URL (e.g., `https://ipsec-lcir.onrender.com`)
+- `VITE_API_URL`: Your API backend URL (e.g., `https://api.ipsecvault.tech`)
 
 > [!NOTE]
-> Ensure you update your `vite.config.js` or API services to use this environment variable in production.
+> Ensure your production frontend uses the API subdomain directly. If `VITE_API_URL` is not set, the app now defaults to `https://api.ipsecvault.tech`.
 
 ### 4. Deploy
 Click **Deploy**. Vercel will build your React application and provide a production URL (e.g., `https://ipsec-console.vercel.app`).
@@ -43,7 +43,7 @@ Once your frontend is deployed, you **must** allow its URL in your Render backen
 1. Go to your **Render Dashboard**.
 2. Select your **ipsec-orchestrator** service.
 3. Add your Vercel URL to the `ALLOWED_ORIGINS` environment variable (if implemented) or update `main.py` to include it in the CORS middleware.
-4. Also keep the API host itself trusted for Swagger and same-origin admin POSTs, for example `https://api.ipsecvault.tech`.
+4. Keep the API host itself trusted for Swagger and admin POSTs, for example `https://api.ipsecvault.tech`.
 
 ---
 
