@@ -36,6 +36,20 @@ _audit_logger_module = _load_module("orchestrator_security_audit_logger", _BASE_
 PolicyParser = _policy_parser_module.PolicyParser
 AuditLogger = _audit_logger_module.AuditLogger
 
+
+def _safe_config_data(raw_value: Any) -> dict:
+    if isinstance(raw_value, dict):
+        return raw_value
+    if raw_value is None:
+        return {}
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
 @router.post("/", response_model=schemas.PolicyResponse)
 def create_policy(
     policy: schemas.UnifiedPolicyCreate, 
@@ -179,8 +193,8 @@ def read_policies(
 ):
     policies = db.query(models.Policy).offset(skip).limit(limit).all()
     for p in policies:
-        p.config_data = json.loads(p.config_data)  # Parse string back to dict for the API response
-    return policies
+        p.config_data = _safe_config_data(p.config_data)
+    return [schemas.PolicyResponse.model_validate(policy).model_dump(mode="json") for policy in policies]
 
 @router.get("/{policy_id}", response_model=schemas.PolicyResponse)
 def read_policy(
@@ -191,8 +205,8 @@ def read_policy(
     policy = db.query(models.Policy).filter(models.Policy.id == policy_id).first()
     if policy is None:
         raise HTTPException(status_code=404, detail="Policy not found")
-    policy.config_data = json.loads(policy.config_data)
-    return policy
+    policy.config_data = _safe_config_data(policy.config_data)
+    return schemas.PolicyResponse.model_validate(policy).model_dump(mode="json")
 
 @router.post("/{policy_id}/assign/{device_id}")
 def assign_policy(
