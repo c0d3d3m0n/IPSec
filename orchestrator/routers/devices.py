@@ -8,6 +8,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from sqlalchemy.exc import IntegrityError
 from .. import models, schemas, database
 from datetime import datetime
 from orchestrator.rate_limiter import limiter
@@ -135,6 +136,10 @@ def register_device(
     existing = db.query(models.Device).filter(models.Device.enrollment_number == device.enrollment_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Enrollment number already exists")
+
+    token_exists = db.query(models.Device).filter(models.Device.enrollment_token == device.enrollment_token).first()
+    if token_exists:
+        raise HTTPException(status_code=400, detail="Enrollment token already exists")
         
     new_device = models.Device(
         enrollment_number=device.enrollment_number,
@@ -143,8 +148,12 @@ def register_device(
         status="PENDING"
     )
     db.add(new_device)
-    db.commit()
-    db.refresh(new_device)
+    try:
+        db.commit()
+        db.refresh(new_device)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Device enrollment number or token already exists")
     return new_device
 
 @router.get("/{device_id}", response_model=schemas.Device)
