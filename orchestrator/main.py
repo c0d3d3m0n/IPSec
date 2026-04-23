@@ -48,6 +48,7 @@ _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certific
 
 def _get_allowed_origins() -> list[str]:
     default_origins = [
+        "https://api.ipsecvault.tech",
         "https://ip-sec.vercel.app",
         "https://ipsecvault.tech",
         "https://www.ipsecvault.tech",
