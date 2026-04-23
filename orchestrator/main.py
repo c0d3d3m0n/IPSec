@@ -47,7 +47,9 @@ _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certific
 
 
 def _get_allowed_origins() -> list[str]:
-    default_origins = [
+    # Keep the production allowlist deterministic so a stale env var cannot
+    # remove the browser origins the dashboard depends on.
+    return [
         "https://www.ipsecvault.tech",
         "https://ipsecvault.tech",
         "https://api.ipsecvault.tech",
@@ -56,20 +58,6 @@ def _get_allowed_origins() -> list[str]:
         "http://localhost:5173",
         "http://localhost:8080",
     ]
-    configured_origins = [
-        origin.strip()
-        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
-        if origin.strip()
-    ]
-    settings_origins = get_settings().get_cors_origins()
-
-    merged_origins: list[str] = []
-    for origin in [*default_origins, *settings_origins, *configured_origins]:
-        normalized = origin.rstrip("/")
-        if normalized and normalized not in merged_origins:
-            merged_origins.append(normalized)
-
-    return merged_origins
 
 
 def _normalize_host(value: str) -> str:
