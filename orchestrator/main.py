@@ -48,10 +48,10 @@ _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certific
 
 def _get_allowed_origins() -> list[str]:
     default_origins = [
+        "https://www.ipsecvault.tech",
+        "https://ipsecvault.tech",
         "https://api.ipsecvault.tech",
         "https://ip-sec.vercel.app",
-        "https://ipsecvault.tech",
-        "https://www.ipsecvault.tech",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8080",
@@ -65,8 +65,9 @@ def _get_allowed_origins() -> list[str]:
 
     merged_origins: list[str] = []
     for origin in [*default_origins, *settings_origins, *configured_origins]:
-        if origin not in merged_origins:
-            merged_origins.append(origin)
+        normalized = origin.rstrip("/")
+        if normalized and normalized not in merged_origins:
+            merged_origins.append(normalized)
 
     return merged_origins
 

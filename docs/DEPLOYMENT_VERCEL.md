@@ -43,7 +43,7 @@ Once your frontend is deployed, you **must** allow its URL in your Render backen
 1. Go to your **Render Dashboard**.
 2. Select your **ipsec-orchestrator** service.
 3. Add your Vercel URL to the `ALLOWED_ORIGINS` environment variable (if implemented) or update `main.py` to include it in the CORS middleware.
-4. Keep the API host itself trusted for Swagger and admin POSTs, for example `https://api.ipsecvault.tech`.
+4. Keep both the app origin and the API host trusted, for example `https://www.ipsecvault.tech` and `https://api.ipsecvault.tech`.
 
 ---
 
