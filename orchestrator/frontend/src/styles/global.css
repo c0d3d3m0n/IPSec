@@ -492,6 +492,58 @@ body {
   padding: 16px;
 }
 
+.totp-settings-block {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.totp-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.totp-settings-head h4 {
+  font-size: 1rem;
+}
+
+.totp-setup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.totp-qr-wrap {
+  padding: 12px;
+  width: fit-content;
+}
+
+.totp-qr {
+  width: 220px;
+  height: 220px;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+
+.totp-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.totp-verify-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.totp-verify-form .input-field {
+  max-width: 240px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1023,6 +1075,20 @@ body {
 
   .device-controls {
     flex-direction: column;
+  }
+
+  .totp-settings-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .totp-verify-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .totp-verify-form .input-field {
+    max-width: 100%;
   }
 
   .mobile-bottom-nav {

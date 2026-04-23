@@ -43,6 +43,10 @@ function Dashboard({ onLogout }) {
   const [uploadResult, setUploadResult] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [totpSetupData, setTotpSetupData] = useState(null);
+  const [totpCodeInput, setTotpCodeInput] = useState('');
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [totpVerifying, setTotpVerifying] = useState(false);
 
   const [enrollForm, setEnrollForm] = useState({
     enrollment_number: '',
@@ -308,6 +312,61 @@ function Dashboard({ onLogout }) {
     }
   };
 
+  const normalizeQrImageSrc = (base64OrDataUrl) => {
+    if (!base64OrDataUrl) {
+      return '';
+    }
+    if (String(base64OrDataUrl).startsWith('data:image')) {
+      return String(base64OrDataUrl);
+    }
+    return `data:image/png;base64,${base64OrDataUrl}`;
+  };
+
+  const handleTotpSetup = async () => {
+    setTotpLoading(true);
+    try {
+      const response = await axios.post(
+        ENDPOINTS.totpSetup,
+        {},
+        { headers: authService.getAuthHeader() }
+      );
+      setTotpSetupData(response.data || null);
+      addToast('success', 'TOTP setup initialized. Scan the QR and verify your code.');
+    } catch (error) {
+      handleApiError(error, 'Failed to initialize TOTP setup');
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleTotpVerify = async (event) => {
+    event.preventDefault();
+    if (!totpCodeInput.trim()) {
+      addToast('warning', 'Enter the authenticator code to verify.');
+      return;
+    }
+
+    setTotpVerifying(true);
+    try {
+      await axios.post(
+        ENDPOINTS.totpVerify,
+        { totp_code: totpCodeInput.trim() },
+        {
+          headers: {
+            ...authService.getAuthHeader(),
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      addToast('success', 'TOTP enabled successfully. Future logins will require code verification.');
+      setTotpCodeInput('');
+    } catch (error) {
+      handleApiError(error, 'TOTP verification failed');
+    } finally {
+      setTotpVerifying(false);
+    }
+  };
+
   const getAssignedCount = (policyId) => devices.filter((d) => d.policy_id === policyId).length;
 
   const renderSidebar = () => (
@@ -535,6 +594,50 @@ function Dashboard({ onLogout }) {
           <h3>Settings</h3>
           <p className="sub-text">Backend: {backendOnline ? 'Online' : 'Offline'}</p>
           <p className="sub-text">Theme: Glassmorphism enabled</p>
+
+          <div className="totp-settings-block">
+            <div className="totp-settings-head">
+              <h4>Time-based One-Time Password (TOTP)</h4>
+              <button className="btn btn-secondary" onClick={handleTotpSetup} disabled={totpLoading}>
+                {totpLoading ? 'Generating...' : 'Generate QR'}
+              </button>
+            </div>
+
+            <p className="sub-text">
+              Use your authenticator app to scan the QR code, then enter the 6-digit code to enable MFA.
+            </p>
+
+            {totpSetupData ? (
+              <div className="totp-setup-panel">
+                <div className="totp-qr-wrap glass-surface">
+                  <img
+                    src={normalizeQrImageSrc(totpSetupData.qr_code_png_base64)}
+                    alt="TOTP QR"
+                    className="totp-qr"
+                  />
+                </div>
+                <div className="totp-meta">
+                  <div className="mono-text">Secret: {totpSetupData.secret || 'N/A'}</div>
+                  <div className="mono-text">URI: {totpSetupData.provisioning_uri || 'N/A'}</div>
+                </div>
+
+                <form className="totp-verify-form" onSubmit={handleTotpVerify}>
+                  <input
+                    className="input-field"
+                    placeholder="Enter 6-digit code"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={totpCodeInput}
+                    onChange={(e) => setTotpCodeInput(e.target.value)}
+                    required
+                  />
+                  <button className="btn btn-primary" type="submit" disabled={totpVerifying}>
+                    {totpVerifying ? 'Verifying...' : 'Verify & Enable'}
+                  </button>
+                </form>
+              </div>
+            ) : null}
+          </div>
         </section>
       );
     }
