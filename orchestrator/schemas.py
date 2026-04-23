@@ -68,7 +68,7 @@ class PolicyResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    config_data: UnifiedPolicyCreate
+    config_data: Dict[str, Any]
     created_at: datetime
     updated_at: Optional[datetime] = None
 

@@ -11,4 +11,5 @@ python-multipart>=0.0.9
 cryptography>=42.0.0
 pyotp>=2.9.0
 qrcode>=7.4.2
+Pillow>=10.0.0
 slowapi>=0.1.9

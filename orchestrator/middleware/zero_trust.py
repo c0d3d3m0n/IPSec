@@ -50,6 +50,7 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
         "/api/auth/totp/setup",
         "/api/auth/totp/verify",
         "/api/devices/enroll",
+        "/api/ping",
         "/health",
         "/",
         "/docs",
