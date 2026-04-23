@@ -1,5 +1,5 @@
 const DEV_DEFAULT_BASE = 'http://localhost:8000';
-const configuredBase = (import.meta.env.VITE_API_URL || '').trim();
+const configuredBase = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
 
 // In production, default directly to the API subdomain unless VITE_API_URL overrides it.
 export const API_BASE = configuredBase || (import.meta.env.PROD
