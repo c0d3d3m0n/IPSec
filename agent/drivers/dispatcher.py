@@ -125,10 +125,10 @@ Remove-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)}
 Remove-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -ErrorAction SilentlyContinue
 
 $mmProposal = New-NetIPsecMainModeCryptoProposal {' '.join(mm_parts)}
-New-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_name)} -Proposal $mmProposal | Out-Null
+New-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_name)} -DisplayName {self._render_powershell_value(mm_name)} -Proposal $mmProposal | Out-Null
 
 $qmProposal = New-NetIPsecQuickModeCryptoProposal {' '.join(qm_parts)}
-New-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -Proposal $qmProposal | Out-Null
+New-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -DisplayName {self._render_powershell_value(qm_name)} -Proposal $qmProposal | Out-Null
 
 $authProposal = New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(auth_secret)}
 New-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -DisplayName {self._render_powershell_value(auth_name)} -Proposal $authProposal | Out-Null
