@@ -68,9 +68,42 @@ function Dashboard({ onLogout }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const toErrorText = (value, fallback = 'Request failed') => {
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      const parts = value
+        .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+        .filter(Boolean);
+      return parts.length > 0 ? parts.join('; ') : fallback;
+    }
+    if (value && typeof value === 'object') {
+      if (typeof value.message === 'string' && value.message.trim()) {
+        return value.message;
+      }
+      if (Array.isArray(value.errors) && value.errors.length > 0) {
+        return toErrorText(value.errors, fallback);
+      }
+      return JSON.stringify(value);
+    }
+    return fallback;
+  };
+
+  const normalizeMessages = (value, fallback) => {
+    if (Array.isArray(value)) {
+      const messages = value.map((v) => toErrorText(v, '')).filter(Boolean);
+      return messages.length > 0 ? messages : [fallback];
+    }
+    if (value === undefined || value === null) {
+      return [fallback];
+    }
+    return [toErrorText(value, fallback)];
+  };
+
   const handleApiError = (error, fallback) => {
     const status = error?.response?.status;
-    const message = error?.response?.data?.detail || fallback;
+    const message = toErrorText(error?.response?.data?.detail, fallback);
     if (status === 401) {
       addToast('error', 'Session expired. Please login again.');
       onLogout();
@@ -297,9 +330,10 @@ function Dashboard({ onLogout }) {
       fetchAllData();
     } catch (error) {
       const data = error?.response?.data;
+      const detail = data?.detail;
       setUploadResult({
-        errors: data?.errors || [data?.detail || 'Policy upload failed'],
-        warnings: data?.warnings || [],
+        errors: normalizeMessages(data?.errors || detail?.errors || detail, 'Policy upload failed'),
+        warnings: normalizeMessages(data?.warnings || detail?.warnings, '').filter(Boolean),
       });
       setShowUploadResultModal(true);
       handleApiError(error, 'Policy upload failed');
