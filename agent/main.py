@@ -46,9 +46,9 @@ def _extract_protected_subnets(config_data: dict) -> list[str]:
 
 
 def _save_certificates(enrollment_payload: dict):
-    cert_path = Path(config.CLIENT_CERT_PATH)
-    key_path = Path(config.CLIENT_KEY_PATH)
-    ca_path = Path(config.CA_CERT_PATH)
+    cert_path = Path(config.CLIENT_CERT_PATH).absolute()
+    key_path = Path(config.CLIENT_KEY_PATH).absolute()
+    ca_path = Path(config.CA_CERT_PATH).absolute()
     cert_path.parent.mkdir(parents=True, exist_ok=True)
     key_path.parent.mkdir(parents=True, exist_ok=True)
     ca_path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +56,7 @@ def _save_certificates(enrollment_payload: dict):
     cert_path.write_text(enrollment_payload["cert_pem"], encoding="utf-8")
     key_path.write_text(enrollment_payload["private_key_pem"], encoding="utf-8")
     ca_path.write_text(enrollment_payload["ca_cert_pem"], encoding="utf-8")
+    logger.info(f"Certificates saved: cert={cert_path}, key={key_path}, ca={ca_path}")
 
 
 def _response_json(response):
@@ -106,9 +107,9 @@ def main():
 
     device_id = enrollment_payload["id"]
     mtls = MTLSClient(
-        cert_path=config.CLIENT_CERT_PATH,
-        key_path=config.CLIENT_KEY_PATH,
-        ca_cert_path=config.CA_CERT_PATH,
+        cert_path=str(Path(config.CLIENT_CERT_PATH).absolute()),
+        key_path=str(Path(config.CLIENT_KEY_PATH).absolute()),
+        ca_cert_path=str(Path(config.CA_CERT_PATH).absolute()),
     )
 
     poll_interval = config.POLL_INTERVAL
