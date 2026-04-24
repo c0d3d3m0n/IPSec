@@ -177,14 +177,18 @@ def main():
                 current_config = config_resp.json()
                 incoming_version = str(current_config.get("version") or "")
                 if incoming_version != (last_applied_version or ""):
+                    policy_id = str(current_config.get("policy_id") or "")
+                    logger.info(f"New policy version detected: {policy_id} v{incoming_version}")
+                    logger.info(f"Applying IPSec policy to {os_type}...")
                     apply_result = driver_dispatcher.apply(current_config)
                     if not apply_result.success:
-                        logger.error("Driver application failed: %s", apply_result.detail or apply_result.message)
-                        if send_heartbeat("error", str(current_config.get("policy_id") or "")) != "ok":
+                        logger.error("❌ Policy application FAILED: %s", apply_result.detail or apply_result.message)
+                        if send_heartbeat("error", policy_id) != "ok":
                             time.sleep(poll_interval)
                             continue
                         time.sleep(poll_interval)
                         continue
+                    logger.info(f"✅ Policy applied successfully: {apply_result.message}")
                     last_applied_version = incoming_version
 
                 if send_heartbeat("active", str(current_config.get("policy_id") or "")) != "ok":

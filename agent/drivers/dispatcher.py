@@ -86,6 +86,10 @@ class DriverDispatcher:
         esp_dh = config.get("esp_dh_group")
         auth_secret = config.get("auth_secret_ref") or ""
 
+        logger.info(f"Windows IPSec policy application started: {len(connections)} connection(s)")
+        logger.info(f"IKE crypto: {ike_enc}/{ike_int}/{ike_dh}")
+        logger.info(f"ESP crypto: {esp_enc}/{esp_int}/{esp_dh}")
+
         # Preferred path: build policy with proposal-based cmdlets in one script.
         # This avoids invalid parameter usage on New-NetIPsecMainModeCryptoSet.
         if connections and ike_enc and esp_enc and auth_secret:
@@ -93,6 +97,7 @@ class DriverDispatcher:
                 executed = 0
                 for connection in connections:
                     name = str(connection.get("name") or "ipsec-rule")
+                    logger.info(f"Applying rule: {name}")
                     mm_name = f"{name}-mm"
                     qm_name = f"{name}-qm"
                     auth_name = f"{name}-auth"
@@ -147,14 +152,19 @@ New-NetIPsecRule -DisplayName {self._render_powershell_value(name)} `
                         check=False,
                     )
                     if result.returncode != 0:
+                        logger.error(f"IPSec rule '{name}' failed: {result.stderr or result.stdout}")
                         return ApplyResult(
                             success=False,
                             os=self.os,
                             message=f"Failed to apply Windows IPsec rule {name}",
                             detail=(result.stderr or result.stdout or ""),
                         )
+                    logger.info(f"IPSec rule '{name}' applied successfully")
+                    logger.info(f"  Local subnet: {connection.get('local_subnet') or connection.get('local_ip')}")
+                    logger.info(f"  Remote subnet: {connection.get('remote_subnet') or connection.get('remote_ip')}")
                     executed += 1
 
+                logger.info(f"✅ Windows IPSec policy application completed: {executed} rule(s) applied")
                 return ApplyResult(success=True, os=self.os, message=f"{executed} Windows IPsec rule(s) applied")
             except Exception as exc:
                 logger.exception("Windows script-based driver application error")
