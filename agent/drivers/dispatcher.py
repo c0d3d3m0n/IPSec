@@ -133,7 +133,7 @@ New-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -P
 $authProposal = New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(auth_secret)}
 New-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -DisplayName {self._render_powershell_value(auth_name)} -Proposal $authProposal | Out-Null
 
-New-NetIPsecRule -DisplayName {self._render_powershell_value(name)} `
+New-NetIPsecRule -PolicyStore PersistentStore -DisplayName {self._render_powershell_value(name)} `
   -LocalAddress {self._render_powershell_value(local_address)} `
   -RemoteAddress {self._render_powershell_value(remote_address)} `
   -Phase1AuthSet {self._render_powershell_value(auth_name)} `
@@ -143,10 +143,14 @@ New-NetIPsecRule -DisplayName {self._render_powershell_value(name)} `
   -InboundSecurity Require `
   -OutboundSecurity Require `
   -Enabled True | Out-Null
+
+$createdRule = Get-NetIPsecRule -PolicyStore PersistentStore -DisplayName {self._render_powershell_value(name)} -ErrorAction SilentlyContinue
+if (-not $createdRule) {{
+    throw "IPSec rule was not found after creation"
+}}
 """
                     result = subprocess.run(
-                        ["powershell", "-NonInteractive", "-Command", "-"],
-                        input=script,
+                        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
                         capture_output=True,
                         text=True,
                         check=False,
