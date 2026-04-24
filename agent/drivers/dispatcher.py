@@ -99,17 +99,17 @@ class DriverDispatcher:
                     local_address = connection.get("local_subnet") or connection.get("local_ip") or "Any"
                     remote_address = connection.get("remote_subnet") or connection.get("remote_ip") or "Any"
 
+                    key_exchange_value = self._map_windows_dh_group(ike_dh) if ike_dh else None
+
                     mm_parts = [f"-Encryption {self._render_powershell_value(ike_enc)}"]
                     if ike_int:
                         mm_parts.append(f"-Hash {self._render_powershell_value(ike_int)}")
-                    if ike_dh:
-                        mm_parts.append(f"-KeyExchange {self._render_powershell_value(ike_dh)}")
+                    if key_exchange_value:
+                        mm_parts.append(f"-KeyExchange {self._render_powershell_value(key_exchange_value)}")
 
-                    qm_parts = [f"-Encryption {self._render_powershell_value(esp_enc)}"]
+                    qm_parts = [f"-Encapsulation ESP", f"-Encryption {self._render_powershell_value(esp_enc)}"]
                     if esp_int:
-                        qm_parts.append(f"-Hash {self._render_powershell_value(esp_int)}")
-                    if esp_dh:
-                        qm_parts.append(f"-PfsGroup {self._render_powershell_value(esp_dh)}")
+                        qm_parts.append(f"-ESPHash {self._render_powershell_value(esp_int)}")
 
                     script = f"""
 $ErrorActionPreference = "Stop"
@@ -125,7 +125,8 @@ New-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_name)} -Pr
 $qmProposal = New-NetIPsecQuickModeCryptoProposal {' '.join(qm_parts)}
 New-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -Proposal $qmProposal | Out-Null
 
-New-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -PresharedKey {self._render_powershell_value(auth_secret)} | Out-Null
+$authProposal = New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(auth_secret)}
+New-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -DisplayName {self._render_powershell_value(auth_name)} -Proposal $authProposal | Out-Null
 
 New-NetIPsecRule -DisplayName {self._render_powershell_value(name)} `
   -LocalAddress {self._render_powershell_value(local_address)} `
@@ -214,6 +215,22 @@ New-NetIPsecRule -DisplayName {self._render_powershell_value(name)} `
             return f"'{json.dumps(value)}'"
         escaped = str(value).replace("'", "''")
         return f"'{escaped}'"
+
+    def _map_windows_dh_group(self, value: str) -> str:
+        mapping = {
+            "DHGroup1": "DH1",
+            "DHGroup2": "DH2",
+            "DHGroup14": "DH14",
+            "DHGroup15": "DH14",
+            "DHGroup16": "DH14",
+            "ECP256": "DH19",
+            "ECP384": "DH20",
+            "ECP521": "DH24",
+            "MODP_2048": "DH14",
+            "MODP_3072": "DH14",
+            "MODP_4096": "DH24",
+        }
+        return mapping.get(str(value), str(value))
 
     def _render_swanctl_conf(self, driver_block: dict[str, Any]) -> str:
         lines: list[str] = []
