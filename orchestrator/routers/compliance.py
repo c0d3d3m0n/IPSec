@@ -149,21 +149,27 @@ def post_compliance(
     encryption_match = bool(actual_encryption) and all(v == required_encryption for v in actual_encryption)
     integrity_match = bool(actual_integrity) and all(v == required_integrity for v in actual_integrity)
 
+    # Check if in pre-traffic state (policy deployed but no SAs negotiated yet)
+    has_active_sas = len(report.active_sas) > 0
+    
     if required_encryption and actual_encryption and not encryption_match:
         violations.append(f"ENCRYPTION_MISMATCH: expected {required_encryption}, got {sorted(actual_encryption)}")
 
     if required_integrity and actual_integrity and not integrity_match:
         violations.append(f"INTEGRITY_MISMATCH: expected {required_integrity}, got {sorted(actual_integrity)}")
 
-    if compliance.get("require_pfs", False) and not report.pfs_active:
-        violations.append("PFS_REQUIRED_BUT_NOT_ACTIVE")
+    # Only check PFS/crypto requirements if SAs are active
+    # Zero SAs is expected in pre-traffic state (policy deployed but no matching traffic yet)
+    if has_active_sas:
+        if compliance.get("require_pfs", False) and not report.pfs_active:
+            violations.append("PFS_REQUIRED_BUT_NOT_ACTIVE")
+
+        strong_required = compliance.get("require_strong_crypto", False)
+        if strong_required and not report.strong_crypto_verified:
+            violations.append("STRONG_CRYPTO_REQUIRED_BUT_NOT_VERIFIED")
 
     if report.plaintext_leak_detected:
         violations.append("CRITICAL_PLAINTEXT_LEAK_DETECTED")
-
-    strong_required = compliance.get("require_strong_crypto", False)
-    if strong_required and not report.strong_crypto_verified:
-        violations.append("STRONG_CRYPTO_REQUIRED_BUT_NOT_VERIFIED")
 
     is_compliant = len(violations) == 0
 
