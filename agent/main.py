@@ -66,6 +66,14 @@ def _response_json(response):
         return {}
 
 
+def _mask_secret(value: str, keep: int = 4) -> str:
+    if not value:
+        return "<empty>"
+    if len(value) <= keep:
+        return "*" * len(value)
+    return "*" * (len(value) - keep) + value[-keep:]
+
+
 def main():
     orchestrator_url = config.ORCHESTRATOR_URL
     enrollment_token = os.getenv("ENROLLMENT_TOKEN") or getpass.getpass("Enter Secret Enrollment Token: ")
@@ -84,6 +92,8 @@ def main():
     os_type = driver_dispatcher.os
 
     logger.info("Starting Agent bootstrap for %s", enrollment_number)
+    logger.info("Using orchestrator URL: %s", orchestrator_url)
+    logger.info("Enrollment token fingerprint: %s", _mask_secret(enrollment_token))
 
     enroll_delay = 5
     enrollment_payload = None
@@ -110,6 +120,12 @@ def main():
         cert_path=str(Path(config.CLIENT_CERT_PATH).absolute()),
         key_path=str(Path(config.CLIENT_KEY_PATH).absolute()),
         ca_cert_path=str(Path(config.CA_CERT_PATH).absolute()),
+    )
+    logger.info(
+        "mTLS init with cert paths: cert_exists=%s key_exists=%s ca_exists=%s",
+        Path(config.CLIENT_CERT_PATH).absolute().exists(),
+        Path(config.CLIENT_KEY_PATH).absolute().exists(),
+        Path(config.CA_CERT_PATH).absolute().exists(),
     )
 
     poll_interval = config.POLL_INTERVAL
@@ -149,8 +165,10 @@ def main():
 
     while True:
         try:
+            config_url = f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/config?os_type={os_type}"
+            logger.info("Requesting config for device_id=%s os_type=%s", device_id, os_type)
             config_resp = mtls.get(
-                f"{orchestrator_url.rstrip('/')}/api/devices/{device_id}/config?os_type={os_type}",
+                config_url,
                 headers=headers,
                 timeout=15,
             )
@@ -232,7 +250,19 @@ def main():
                         time.sleep(poll_interval)
                         continue
             else:
-                logger.warning("Unexpected config status: %s", config_resp.status_code)
+                response_excerpt = (config_resp.text or "")[:500]
+                logger.warning(
+                    "Unexpected config status: %s url=%s body=%s",
+                    config_resp.status_code,
+                    config_url,
+                    response_excerpt,
+                )
+                if config_resp.status_code == 401:
+                    logger.error(
+                        "401 details: sent_header_x_enrollment_token=%s token_fingerprint=%s",
+                        "X-Enrollment-Token" in headers,
+                        _mask_secret(headers.get("X-Enrollment-Token", "")),
+                    )
             time.sleep(poll_interval)
         except KeyboardInterrupt:
             logger.info("Stopping Agent")

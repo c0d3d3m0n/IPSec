@@ -16,6 +16,13 @@ class MTLSClient:
         # Use system CA bundle for server certificate verification (server uses Let's Encrypt)
         # The ca_cert_path is for client authentication only, not server verification
         self.session.verify = True
+        logger.info(
+            "MTLSClient initialized cert=%s key=%s ca=%s verify=%s",
+            cert_path,
+            key_path,
+            ca_cert_path,
+            self.session.verify,
+        )
 
     def get(self, url: str, **kwargs):
         return self._request("GET", url, None, **kwargs)
@@ -27,10 +34,20 @@ class MTLSClient:
         delays = [1, 2, 4]
         for attempt, delay in enumerate(delays, start=1):
             try:
+                has_token = "X-Enrollment-Token" in (kwargs.get("headers") or {})
+                logger.info(
+                    "mTLS request attempt=%s method=%s url=%s has_token_header=%s",
+                    attempt,
+                    method,
+                    url,
+                    has_token,
+                )
                 if method == "GET":
                     response = self.session.get(url, **kwargs)
                 else:
                     response = self.session.post(url, json=payload, **kwargs)
+
+                logger.info("mTLS response status=%s method=%s url=%s", response.status_code, method, url)
 
                 if response.status_code == 403:
                     try:
@@ -45,8 +62,8 @@ class MTLSClient:
                         )
                         return response
                 return response
-            except requests.exceptions.SSLError:
-                logger.error("mTLS handshake failed")
+            except requests.exceptions.SSLError as exc:
+                logger.error("mTLS handshake failed for url=%s: %s", url, exc)
                 raise
             except requests.exceptions.ConnectionError as exc:
                 logger.warning("Connection error on attempt %s: %s", attempt, exc)

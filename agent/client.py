@@ -42,6 +42,16 @@ class OrchestratorClient:
             self.device_id = data['id']
             logger.info(f"Device enrolled successfully (Number: {enrollment_number}). ID: {self.device_id}")
             return data
+        except requests.exceptions.HTTPError as e:
+            body = ""
+            if e.response is not None:
+                body = (e.response.text or "")[:500]
+            logger.error(
+                "Enrollment HTTP error status=%s body=%s",
+                e.response.status_code if e.response is not None else "unknown",
+                body,
+            )
+            return None
         except Exception as e:
             logger.error(f"Enrollment failed: {e}")
             return None
