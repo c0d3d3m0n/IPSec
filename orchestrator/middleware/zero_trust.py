@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from orchestrator import models
 from orchestrator.database import SessionLocal
 
 
@@ -36,7 +37,6 @@ _trust_module = _load_module("orchestrator_security_trust_evaluator", _BASE_DIR 
 
 InternalCA = _ca_module.InternalCA
 TrustEvaluator = _trust_module.TrustEvaluator
-models = _load_module("orchestrator_models", _BASE_DIR / "models.py")
 
 
 logger = logging.getLogger(__name__)
