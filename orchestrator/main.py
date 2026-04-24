@@ -183,6 +183,43 @@ def _ensure_auth_schema_compatibility() -> None:
             conn.execute(text(stmt))
 
 
+def _ensure_device_policy_schema_compatibility() -> None:
+    """Add missing columns for enrollment flow to devices and policies tables."""
+    inspector = inspect(engine)
+    statements: list[str] = []
+    
+    # Device table migrations
+    if "devices" in inspector.get_table_names():
+        device_cols = {col["name"] for col in inspector.get_columns("devices")}
+        if "enrollment_number" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN enrollment_number VARCHAR UNIQUE")
+        if "enrollment_token" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN enrollment_token VARCHAR UNIQUE")
+        if "pre_shared_key" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN pre_shared_key VARCHAR")
+        if "os_fingerprint" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN os_fingerprint VARCHAR")
+        if "status" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN status VARCHAR DEFAULT 'PENDING'")
+    
+    # Policy table migrations
+    if "policies" in inspector.get_table_names():
+        policy_cols = {col["name"] for col in inspector.get_columns("policies")}
+        if "config_data" not in policy_cols:
+            statements.append("ALTER TABLE policies ADD COLUMN config_data TEXT")
+    
+    if not statements:
+        return
+    
+    with engine.begin() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+                print(f"✅ Migration: {stmt}")
+            except Exception as e:
+                print(f"⚠️  Migration skipped (may already exist): {stmt} - {e}")
+
+
 # Resolve CA files before middleware is created so middleware can initialize cleanly.
 _INITIAL_CA_CERT_PATH, _INITIAL_CA_KEY_PATH = _ensure_ca_keypair()
 ZeroTrustMiddleware.configure_ca(_INITIAL_CA_CERT_PATH, _INITIAL_CA_KEY_PATH)
@@ -195,6 +232,7 @@ async def lifespan(app: FastAPI):
     ZeroTrustMiddleware.configure_ca(ca_cert_path, ca_key_path)
     Base.metadata.create_all(bind=engine)
     _ensure_auth_schema_compatibility()
+    _ensure_device_policy_schema_compatibility()
     
     # DEBUG: Log CORS configuration
     allowed_origins = _get_allowed_origins()
