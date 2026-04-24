@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 from fastapi import Request
@@ -35,9 +36,23 @@ _trust_module = _load_module("orchestrator_security_trust_evaluator", _BASE_DIR 
 
 InternalCA = _ca_module.InternalCA
 TrustEvaluator = _trust_module.TrustEvaluator
+models = _load_module("orchestrator_models", _BASE_DIR / "models.py")
 
 
 logger = logging.getLogger(__name__)
+
+
+_DEVICE_PATH_RE = re.compile(r"^/api/devices/(\d+)(?:/|$)")
+
+
+def _extract_device_id_from_path(path: str) -> int | None:
+    match = _DEVICE_PATH_RE.match(path)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return None
 
 
 class ZeroTrustMiddleware(BaseHTTPMiddleware):
@@ -61,6 +76,7 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
+        self.allow_token_fallback = os.getenv("ALLOW_DEVICE_TOKEN_FALLBACK", "true").strip().lower() in {"1", "true", "yes", "on"}
 
         if ZeroTrustMiddleware._configured_ca_cert_path and ZeroTrustMiddleware._configured_ca_key_path:
             ca_cert_path = ZeroTrustMiddleware._configured_ca_cert_path
@@ -124,6 +140,29 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
             cert_pem = cert_obj.encode("utf-8")
 
         if not cert_pem:
+            if self.allow_token_fallback and path.startswith("/api/devices/"):
+                requested_device_id = _extract_device_id_from_path(path)
+                enrollment_token = (request.headers.get("X-Enrollment-Token") or "").strip()
+                if requested_device_id is not None and enrollment_token:
+                    db: Session = SessionLocal()
+                    try:
+                        db_device = (
+                            db.query(models.Device)
+                            .filter(models.Device.id == requested_device_id)
+                            .first()
+                        )
+                        if db_device and (db_device.enrollment_token or "").strip() == enrollment_token:
+                            logger.warning(
+                                "ZeroTrust token fallback accepted for device_id=%s path=%s",
+                                requested_device_id,
+                                path,
+                            )
+                            request.state.device_id = requested_device_id
+                            request.state.trust_score = 50
+                            request.state.trust_decision = "fallback-token"
+                            return await call_next(request)
+                    finally:
+                        db.close()
             return JSONResponse(status_code=401, content={"detail": "Client certificate required"})
 
         db: Session = SessionLocal()
