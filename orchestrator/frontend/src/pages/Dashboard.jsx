@@ -103,7 +103,9 @@ function Dashboard({ onLogout }) {
       const response = await axios.get(`${ENDPOINTS.deviceCompliance(deviceId)}?limit=10`, {
         headers: authService.getAuthHeader(),
       });
-      return response.data || [];
+      // Compliance endpoint returns { device_id, total_records, records, ... }
+      // Extract the records array
+      return response.data?.records || [];
     } catch (error) {
       handleApiError(error, 'Failed to load compliance history');
       return [];
