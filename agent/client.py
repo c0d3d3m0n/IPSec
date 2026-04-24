@@ -36,7 +36,7 @@ class OrchestratorClient:
         }
 
         try:
-            response = self.session.post(f"{self.base_url}/devices/enroll", json=payload, timeout=15)
+            response = self.session.post(f"{self.base_url}/api/devices/enroll", json=payload, timeout=15)
             response.raise_for_status()
             data = response.json()
             self.device_id = data['id']
@@ -53,7 +53,7 @@ class OrchestratorClient:
             return None
 
         try:
-            response = self.session.get(f"{self.base_url}/devices/{self.device_id}/config", timeout=15)
+            response = self.session.get(f"{self.base_url}/api/devices/{self.device_id}/config", timeout=15)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
