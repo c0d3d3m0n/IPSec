@@ -13,7 +13,9 @@ class MTLSClient:
     def __init__(self, cert_path: str, key_path: str, ca_cert_path: str):
         self.session = requests.Session()
         self.session.cert = (cert_path, key_path)
-        self.session.verify = ca_cert_path
+        # Use system CA bundle for server certificate verification (server uses Let's Encrypt)
+        # The ca_cert_path is for client authentication only, not server verification
+        self.session.verify = True
 
     def get(self, url: str, **kwargs):
         return self._request("GET", url, None, **kwargs)
