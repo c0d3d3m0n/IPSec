@@ -1,7 +1,11 @@
 import threading
 import importlib
+import logging
 from ipaddress import ip_address, ip_network
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 
 class LeakDetector:
@@ -40,6 +44,8 @@ class LeakDetector:
         try:
             scapy_all = importlib.import_module("scapy.all")
             sniff = getattr(scapy_all, "sniff")
+            resolve_iface = getattr(scapy_all, "resolve_iface", None)
+            conf = getattr(scapy_all, "conf", None)
         except Exception:
             # Scapy is optional; leak detection will remain passive if unavailable.
             return
@@ -47,10 +53,34 @@ class LeakDetector:
         if self._running:
             return
 
+        selected_interface = interface
+        if resolve_iface is not None:
+            try:
+                resolve_iface(selected_interface)
+            except Exception:
+                fallback = str(getattr(conf, "iface", "") or "")
+                if fallback:
+                    logger.warning(
+                        "Leak detector interface '%s' not found. Falling back to '%s'.",
+                        selected_interface,
+                        fallback,
+                    )
+                    selected_interface = fallback
+                else:
+                    logger.warning(
+                        "Leak detector interface '%s' not found and no fallback is available. Disabling leak sniffing.",
+                        selected_interface,
+                    )
+                    return
+
         self._running = True
 
         def _run():
-            sniff(iface=interface, prn=self.packet_inspector, store=False, stop_filter=lambda _: not self._running)
+            try:
+                sniff(iface=selected_interface, prn=self.packet_inspector, store=False, stop_filter=lambda _: not self._running)
+            except Exception as exc:
+                logger.warning("Leak detector stopped due to sniff error: %s", exc)
+                self._running = False
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
