@@ -198,7 +198,15 @@ def get_device_config(
 
     if device.enrollment_token != device_token.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid device token")
-    
+
+    # Heartbeat used to write runtime states (NO_POLICY/DEGRADED/ERROR) into
+    # device.status; treat those as enrolled and normalize back to ACTIVE.
+    status_normalized = (device.status or "").strip().upper()
+    if status_normalized in {"NO_POLICY", "DEGRADED", "ERROR"}:
+        device.status = "ACTIVE"
+        db.commit()
+        db.refresh(device)
+
     if device.status != "ACTIVE":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device enrollment is not active")
 

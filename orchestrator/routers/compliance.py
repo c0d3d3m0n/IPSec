@@ -87,7 +87,6 @@ def post_heartbeat(
         raise HTTPException(status_code=400, detail="device_id mismatch")
 
     device.last_seen = datetime.now(timezone.utc)
-    device.status = heartbeat.status.upper()
     db.commit()
 
     policy = _get_policy_payload(device)
