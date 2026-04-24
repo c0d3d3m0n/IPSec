@@ -198,7 +198,13 @@ def main():
                         leak_detector = LeakDetector(protected_subnets)
                         leak_detector.start(config.LEAK_DETECTION_IFACE)
 
-                snapshot = sa_monitor.collect_snapshot()
+                try:
+                    snapshot = sa_monitor.collect_snapshot()
+                except Exception as exc:
+                    logger.warning("Skipping compliance submission this cycle: %s", exc)
+                    time.sleep(poll_interval)
+                    continue
+
                 expected_enc, expected_integ, require_pfs = _expected_esp(current_config)
                 actual_enc = {_normalize_algo(sa.get("encryption_algo")) for sa in snapshot.get("active_sas", [])}
                 actual_integ = {_normalize_algo(sa.get("integrity_algo")) for sa in snapshot.get("active_sas", [])}

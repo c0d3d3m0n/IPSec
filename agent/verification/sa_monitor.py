@@ -112,6 +112,12 @@ class SAMonitor:
         command = "Get-NetIPsecQuickModeSA | ConvertTo-Json -Depth 4"
         result = subprocess.run(["powershell", "-NoProfile", "-Command", command], capture_output=True, text=True, check=False)
 
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            if stderr:
+                raise RuntimeError(f"Failed to query Windows IPsec SA telemetry: {stderr}")
+            raise RuntimeError("Failed to query Windows IPsec SA telemetry")
+
         data = []
         output = (result.stdout or "").strip()
         if output:
