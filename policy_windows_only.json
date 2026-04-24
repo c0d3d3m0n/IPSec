@@ -1,0 +1,49 @@
+{
+  "policy_id": "ipsec-windows-only-001",
+  "version": "1.1",
+  "description": "Windows-only IPSec policy",
+  "target": {
+    "os": ["windows"],
+    "device_groups": ["hq-workstations"]
+  },
+  "ipsec_policy": {
+    "mode": "tunnel",
+    "key_exchange": "ikev2",
+    "authentication": {
+      "type": "psk",
+      "secret_ref": "SuperSecretWindowsKey123!"
+    },
+    "crypto": {
+      "ike": {
+        "encryption": "aes256",
+        "integrity": "sha256",
+        "dh_group": "modp3072"
+      },
+      "esp": {
+        "encryption": "aes256",
+        "integrity": "sha256",
+        "dh_group": "modp3072",
+        "pfs": true
+      }
+    },
+    "connections": [
+      {
+        "name": "corporate-vpn",
+        "local_ip": "192.168.10.100",
+        "local_subnet": "192.168.10.0/24",
+        "remote_ip": "10.10.10.1",
+        "remote_subnet": "10.10.10.0/24",
+        "auto_start": true
+      }
+    ]
+  },
+  "execution": {
+    "retry_count": 3,
+    "timeout_seconds": 60,
+    "rollback_on_failure": true
+  },
+  "compliance": {
+    "require_strong_crypto": true,
+    "require_pfs": true
+  }
+}
