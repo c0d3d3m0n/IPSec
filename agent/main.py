@@ -70,7 +70,11 @@ def main():
     enrollment_token = os.getenv("ENROLLMENT_TOKEN") or getpass.getpass("Enter Secret Enrollment Token: ")
     enrollment_number = os.getenv("ENROLLMENT_NUMBER") or input("Enter Enrollment Number: ")
 
-    pre_shared_key = config.PRE_SHARED_KEY or enrollment_token
+    pre_shared_key = config.PRE_SHARED_KEY or getpass.getpass(
+        "Enter Pre-Shared Key (leave blank to reuse Enrollment Token): "
+    )
+    if not pre_shared_key:
+        pre_shared_key = enrollment_token
     fingerprint = DeviceFingerprint().collect()
     fingerprint_signature = DeviceFingerprint().sign(fingerprint["fingerprint"], pre_shared_key)
 
