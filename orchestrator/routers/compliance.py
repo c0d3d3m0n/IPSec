@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from orchestrator import database, models
 from orchestrator.rate_limiter import limiter
+from orchestrator.auth import get_current_admin_user
 
 
 router = APIRouter(prefix="/devices", tags=["compliance"])
@@ -210,14 +211,26 @@ def post_compliance(
 def get_compliance_reports(
     device_id: int,
     limit: int = Query(default=50, ge=1, le=500),
-    device_token: str = Header(..., alias="X-Enrollment-Token"),
+    device_token: str | None = Header(default=None, alias="X-Enrollment-Token"),
     db: Session = Depends(database.get_db),
+    request: Request = None,
 ):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    _check_device_token(device, device_token)
+    # Check if this is an admin request (has Authorization Bearer header)
+    auth_header = (request.headers.get("authorization", "") if request else "").lower()
+    is_admin_request = auth_header.startswith("bearer ")
+    
+    # Allow if called by admin OR has valid device token
+    if not is_admin_request and not device_token:
+        raise HTTPException(status_code=401, detail="Missing X-Enrollment-Token header or Bearer token")
+    
+    if device_token:
+        # Validate device token
+        _check_device_token(device, device_token)
+    # If admin request with Bearer token, it will be validated by the middleware before reaching here
 
     records = (
         db.query(ComplianceRecord)
