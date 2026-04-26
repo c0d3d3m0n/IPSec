@@ -142,7 +142,6 @@ class DriverDispatcher:
                 mm_rule_name = f"{conn_name}-mmrule"
 
                 cleanup_cmd = f"""
-$ErrorActionPreference = "Stop"
 Remove-NetIPsecRule -Name {self._render_powershell_value(rule_name)} -ErrorAction SilentlyContinue
 Remove-NetIPsecMainModeRule -Name {self._render_powershell_value(mm_rule_name)} -ErrorAction SilentlyContinue
 Remove-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_crypto_name)} -ErrorAction SilentlyContinue
@@ -150,9 +149,7 @@ Remove-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_crypto
 Remove-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(phase1_auth_name)} -ErrorAction SilentlyContinue
 Remove-NetIPsecPhase2AuthSet -Name {self._render_powershell_value(phase2_auth_name)} -ErrorAction SilentlyContinue
 """
-                ok, detail = _run_powershell_step("[Windows driver] Cleanup: Removing previous objects...", cleanup_cmd)
-                if not ok:
-                    return ApplyResult(success=False, os=self.os, message=f"Cleanup failed for {conn_name}", detail=detail)
+                _run_powershell_step("[Windows driver] Cleanup: Removing previous objects...", cleanup_cmd)
 
                 step1_cmd = f"""
 $ErrorActionPreference = "Stop"
