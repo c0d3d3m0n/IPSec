@@ -221,22 +221,38 @@ New-NetIPsecQuickModeCryptoSet `
                 if not ok:
                     return ApplyResult(success=False, os=self.os, message=f"Step 4 failed for {conn_name}", detail=detail)
 
+#                 step5_cmd = f"""
+# $ErrorActionPreference = "Stop"
+# New-NetIPsecRule `
+#     -Name                 {self._render_powershell_value(rule_name)} `
+#     -DisplayName          {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
+#     -Mode                 Tunnel `
+#     -LocalAddress         {self._render_powershell_value(local_subnet)} `
+#     -RemoteAddress        {self._render_powershell_value(remote_subnet)} `
+#     -LocalTunnelEndpoint  {self._render_powershell_value(local_ip)} `
+#     -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
+#     -Phase1AuthSet        {self._render_powershell_value(phase1_auth_name)} `
+#     -QuickModeCryptoSet   {self._render_powershell_value(qm_crypto_name)} `
+#     -KeyModule            IKEv2 `
+#     -InboundSecurity      Require `
+#     -OutboundSecurity     Require `
+#     -ErrorAction          Stop
+# """
                 step5_cmd = f"""
 $ErrorActionPreference = "Stop"
 New-NetIPsecRule `
-    -Name                 {self._render_powershell_value(rule_name)} `
-    -DisplayName          {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
-    -Mode                 Tunnel `
-    -LocalAddress         {self._render_powershell_value(local_subnet)} `
-    -RemoteAddress        {self._render_powershell_value(remote_subnet)} `
-    -LocalTunnelEndpoint  {self._render_powershell_value(local_ip)} `
-    -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
-    -Phase1AuthSet        {self._render_powershell_value(phase1_auth_name)} `
-    -QuickModeCryptoSet   {self._render_powershell_value(qm_crypto_name)} `
-    -KeyModule            IKEv2 `
-    -InboundSecurity      Require `
-    -OutboundSecurity     Require `
-    -ErrorAction          Stop
+  -Name                 {self._render_powershell_value(rule_name)} `
+  -DisplayName          {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
+  -Mode                 Tunnel `
+  -LocalAddress         {self._render_powershell_value(local_subnet)} `
+  -RemoteAddress        {self._render_powershell_value(remote_subnet)} `
+  -LocalTunnelEndpoint  {self._render_powershell_value(local_ip)} `
+  -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
+  -Phase1AuthSet        {self._render_powershell_value(phase1_auth_name)} `
+  -QuickModeCryptoSet   {self._render_powershell_value(qm_crypto_name)} `
+  -InboundSecurity      Require `
+  -OutboundSecurity     Require `
+  -ErrorAction          Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 5/6: Creating NetIPsecRule...", step5_cmd)
                 if not ok:
