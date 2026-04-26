@@ -194,6 +194,18 @@ New-NetIPsecMainModeCryptoSet `
 #             -DHGroup {self._render_powershell_value(esp_dh_mapped)}) `
 #   -ErrorAction Stop
 # """
+#                 step4_cmd = f"""
+# $ErrorActionPreference = "Stop"
+# New-NetIPsecQuickModeCryptoSet `
+#   -Name        {self._render_powershell_value(qm_crypto_name)} `
+#   -DisplayName {self._render_powershell_value(f"{conn_name} QM Crypto")} `
+#   -Proposal    (New-NetIPsecQuickModeCryptoProposal `
+#                   -Encapsulation ESP `
+#                   -ESPHash    {self._render_powershell_value(esp_int)} `
+#                   -Encryption {self._render_powershell_value(esp_enc)} `
+#                   -DHGroup    {self._render_powershell_value(esp_dh_mapped)}) `
+#   -ErrorAction Stop
+# """
                 step4_cmd = f"""
 $ErrorActionPreference = "Stop"
 New-NetIPsecQuickModeCryptoSet `
@@ -203,7 +215,7 @@ New-NetIPsecQuickModeCryptoSet `
                   -Encapsulation ESP `
                   -ESPHash    {self._render_powershell_value(esp_int)} `
                   -Encryption {self._render_powershell_value(esp_enc)} `
-                  -DHGroup    {self._render_powershell_value(esp_dh_mapped)}) `
+                  -PfsGroup   {self._render_powershell_value(esp_dh_mapped)}) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 4/6: Creating QuickModeCryptoSet...", step4_cmd)
