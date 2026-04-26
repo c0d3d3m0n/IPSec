@@ -125,6 +125,8 @@ class DriverDispatcher:
                 remote_ip = connection.get("remote_ip")
                 local_subnet = connection.get("local_subnet")
                 remote_subnet = connection.get("remote_subnet")
+                ike_dh_mapped = self._map_windows_dh_group(ike_dh)
+                esp_dh_mapped = self._map_windows_dh_group(esp_dh)
 
                 if not all([local_ip, remote_ip, local_subnet, remote_subnet]):
                     return ApplyResult(
@@ -171,7 +173,7 @@ New-NetIPsecMainModeCryptoSet `
   -Proposal (New-NetIPsecMainModeCryptoProposal `
       -Encryption {self._render_powershell_value(ike_enc)} `
       -Hash {self._render_powershell_value(ike_int)} `
-      -KeyExchange {self._render_powershell_value(ike_dh)}) `
+            -KeyExchange {self._render_powershell_value(ike_dh_mapped)}) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 2/6: Creating MainModeCryptoSet...", step2_cmd)
@@ -199,7 +201,7 @@ New-NetIPsecQuickModeCryptoSet `
       -Encapsulation Tunnel `
       -ESPHash {self._render_powershell_value(esp_int)} `
       -Encryption {self._render_powershell_value(esp_enc)} `
-      -DHGroup {self._render_powershell_value(esp_dh)}) `
+            -DHGroup {self._render_powershell_value(esp_dh_mapped)}) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 4/6: Creating QuickModeCryptoSet...", step4_cmd)
@@ -316,9 +318,12 @@ New-NetIPsecMainModeRule `
             "ECP521": "DH24",
             "MODP_2048": "DH14",
             "MODP_3072": "DH14",
-            "MODP_4096": "DH24",
+            "MODP_4096": "DH14",
+            "ECP_256": "DH19",
+            "ECP_384": "DH20",
+            "ECP_521": "DH24",
         }
-        return mapping.get(str(value), str(value))
+        return mapping.get(str(value), "DH14")
 
     def _render_swanctl_conf(self, driver_block: dict[str, Any]) -> str:
         lines: list[str] = []
