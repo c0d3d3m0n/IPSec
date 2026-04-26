@@ -185,7 +185,7 @@ $ErrorActionPreference = "Stop"
 New-NetIPsecPhase2AuthSet `
   -Name {self._render_powershell_value(phase2_auth_name)} `
   -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
-  -Proposal (New-NetIPsecAuthProposal -Machine) `
+    -Proposal (New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(psk)}) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 3/6: Creating Phase2AuthSet...", step3_cmd)
