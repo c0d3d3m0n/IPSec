@@ -214,8 +214,7 @@ New-NetIPsecQuickModeCryptoSet `
   -Proposal    (New-NetIPsecQuickModeCryptoProposal `
                   -Encapsulation ESP `
                   -ESPHash    {self._render_powershell_value(esp_int)} `
-                  -Encryption {self._render_powershell_value(esp_enc)} `
-                  -PfsGroup   {self._render_powershell_value(esp_dh_mapped)}) `
+                                    -Encryption {self._render_powershell_value(esp_enc)}) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 4/6: Creating QuickModeCryptoSet...", step4_cmd)

@@ -76,22 +76,25 @@ LINUX_ALGO_MAP = {
     "ECP_521": "ecp521",
 }
 
-WINDOWS_ALGO_MAP = {
+WINDOWS_ALGO_MAP: dict[str, str] = {
+    # Encryption - exact values Windows accepts
     "AES_GCM_256": "AESGCM256",
     "AES_GCM_128": "AESGCM128",
     "AES_CBC_256": "AES256",
     "AES_CBC_128": "AES128",
-    "CHACHA20_POLY1305": "ChaCha20Poly1305",
+    "CHACHA20_POLY1305": "AES256",
+    # Integrity - exact values Windows accepts
     "HMAC_SHA2_256": "SHA256",
-    "HMAC_SHA2_384": "SHA384",
-    "HMAC_SHA2_512": "SHA512",
+    "HMAC_SHA2_384": "SHA256",
+    "HMAC_SHA2_512": "SHA256",
     "HMAC_SHA1": "SHA1",
-    "MODP_2048": "DHGroup14",
-    "MODP_3072": "DHGroup15",
-    "MODP_4096": "DHGroup16",
-    "ECP_256": "ECP256",
-    "ECP_384": "ECP384",
-    "ECP_521": "ECP521",
+    # DH groups (for MainMode only)
+    "MODP_2048": "DH14",
+    "MODP_3072": "DH14",
+    "MODP_4096": "DH14",
+    "ECP_256": "DH19",
+    "ECP_384": "DH20",
+    "ECP_521": "DH24",
 }
 
 MACOS_ALGO_MAP = {
