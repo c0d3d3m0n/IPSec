@@ -180,12 +180,20 @@ New-NetIPsecMainModeCryptoSet `
                 if not ok:
                     return ApplyResult(success=False, os=self.os, message=f"Step 2 failed for {conn_name}", detail=detail)
 
+#                 step3_cmd = f"""
+# $ErrorActionPreference = "Stop"
+# New-NetIPsecPhase2AuthSet `
+#   -Name {self._render_powershell_value(phase2_auth_name)} `
+#   -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
+#     -Default `
+#   -ErrorAction Stop
+# """
                 step3_cmd = f"""
 $ErrorActionPreference = "Stop"
 New-NetIPsecPhase2AuthSet `
   -Name {self._render_powershell_value(phase2_auth_name)} `
   -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
-    -Default `
+  -Proposal (New-NetIPsecAuthProposal -AuthenticationMethod Anonymous) `
   -ErrorAction Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 3/6: Creating Phase2AuthSet...", step3_cmd)
