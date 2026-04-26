@@ -124,28 +124,51 @@ Next time you log in:
 
 #### On Windows (Administrator required)
 
+Use the full runbook for a fresh terminal session:
+- [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt)
+
+Quick sequence:
+
 ```powershell
-# RIGHT-CLICK PowerShell and select "Run as Administrator"
+# 1) Open PowerShell as Administrator
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
-# Navigate to agent directory
+# 2) Go to repo root and activate venv
+cd E:\PROJECTS\IPSec_Framework
+.\.venv\Scripts\Activate.ps1
+
+# 3) Agent runtime environment
+$env:ORCHESTRATOR_URL = "https://api.ipsecvault.tech"
+$env:POLL_INTERVAL = "30"
+
+# Optional: suppress interface fallback warning on Windows
+$env:LEAK_DETECTION_IFACE = ""
+
+# 4) Run agent
 cd agent
-
-# Run the agent
-python -m agent.main
+python .\main.py
 ```
 
-**Prompts:**
+Prompts:
+
 ```
-Enter Secret Enrollment Token: MySecureToken123!@#
+Enter Secret Enrollment Token: <your enrollment token>
 Enter Enrollment Number: PROD-WIN-01
+Enter Pre-Shared Key (leave blank to reuse Enrollment Token):
 ```
 
-**Expected Output:**
+Expected output includes:
+
 ```
 [INFO] Device enrolled successfully
-[INFO] Certificate issued and saved
-[INFO] Starting polling loop
-[INFO] Heartbeat sent successfully
+[INFO] New policy version detected
+[INFO] Applying IPSec policy to windows
+[Windows driver] Step 1/6 ... OK
+[Windows driver] Step 2/6 ... OK
+[Windows driver] Step 3/6: Phase2AuthSet skipped (PSK tunnel)
+[Windows driver] Step 4/6 ... OK
+[Windows driver] Step 5/6 ... OK
+[Windows driver] Step 6/6 ... OK
 ```
 
 #### On Linux

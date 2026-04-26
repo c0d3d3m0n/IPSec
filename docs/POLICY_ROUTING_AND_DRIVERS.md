@@ -78,6 +78,21 @@ Windows agents receive a PowerShell command list containing cmdlets such as:
 
 The agent executes each cmdlet with `powershell -NonInteractive -Command`.
 
+Current Windows PSK tunnel flow applied by `agent/drivers/dispatcher.py`:
+
+1. Cleanup existing rule and crypto/auth objects by deterministic names.
+2. Step 1/6: Create `Phase1AuthSet` using PSK.
+3. Step 2/6: Create `MainModeCryptoSet` with mapped Windows DH group.
+4. Step 3/6: Skip `Phase2AuthSet` for PSK IKEv2 tunnels.
+5. Step 4/6: Create `QuickModeCryptoSet` with ESP hash and encryption.
+6. Step 5/6: Create `NetIPsecRule` in tunnel mode with inbound/outbound security required.
+7. Step 6/6: Create `MainModeRule` linking Phase1 auth and MainMode crypto.
+
+Notes:
+
+- `New-NetIPsecQuickModeCryptoProposal` does not use a PFS parameter in this implementation.
+- Windows-friendly parser output maps values like `AES_CBC_256 -> AES256` and `HMAC_SHA2_256 -> SHA256`.
+
 ### macOS
 
 macOS agents receive a racoon-style remote block structure.

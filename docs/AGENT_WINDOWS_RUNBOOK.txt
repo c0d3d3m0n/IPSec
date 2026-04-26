@@ -1,0 +1,90 @@
+IPSec Framework - Windows Agent Runbook
+
+Purpose
+- Start and validate the Windows agent from a fresh PowerShell session.
+- Use exact environment variables and commands.
+
+Prerequisites
+- Run PowerShell as Administrator.
+- Repository is cloned at: E:\PROJECTS\IPSec_Framework
+- Python virtual environment exists at: E:\PROJECTS\IPSec_Framework\.venv
+
+A) Fresh Terminal Setup
+1) Open PowerShell as Administrator.
+2) Run:
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+cd E:\PROJECTS\IPSec_Framework
+git pull origin main
+.\.venv\Scripts\Activate.ps1
+
+B) Agent Environment Variables (current terminal only)
+Run:
+
+$env:ORCHESTRATOR_URL = "https://api.ipsecvault.tech"
+$env:POLL_INTERVAL = "30"
+
+Optional (avoid interface fallback warning on Windows):
+
+$env:LEAK_DETECTION_IFACE = ""
+
+Optional (if you want fixed PSK from env):
+
+$env:PRE_SHARED_KEY = "<your_psk_value>"
+
+C) Start Agent
+Run:
+
+cd E:\PROJECTS\IPSec_Framework\agent
+python .\main.py
+
+Expected prompts:
+- Enter Secret Enrollment Token:
+- Enter Enrollment Number:
+- Enter Pre-Shared Key (leave blank to reuse Enrollment Token):
+
+D) Expected Windows Driver Log Sequence
+- [Windows driver] Step 1/6: Creating Phase1AuthSet... OK
+- [Windows driver] Step 2/6: Creating MainModeCryptoSet... OK
+- [Windows driver] Step 3/6: Phase2AuthSet skipped (PSK tunnel)
+- [Windows driver] Step 4/6: Creating QuickModeCryptoSet... OK
+- [Windows driver] Step 5/6: Creating NetIPsecRule... OK
+- [Windows driver] Step 6/6: Creating MainModeRule... OK
+
+E) Validate Applied Policy and Rules
+In another Admin PowerShell:
+
+Get-NetIPsecRule -PolicyStore PersistentStore | Format-Table Name, DisplayName, Enabled
+Get-NetIPsecMainModeRule | Format-Table Name, DisplayName
+Get-NetIPsecMainModeCryptoSet | Format-Table Name, DisplayName
+Get-NetIPsecQuickModeCryptoSet | Format-Table Name, DisplayName
+
+F) Validate Active SAs (traffic-dependent)
+
+Get-NetIPsecMainModeSA
+Get-NetIPsecQuickModeSA
+
+Notes:
+- Empty SA output is normal until matching traffic exists.
+- Trigger traffic to remote subnet, then re-check:
+
+ping 10.10.10.1
+Get-NetIPsecQuickModeSA
+
+G) Common Failures and Fixes
+1) "No policy assigned to this device"
+- Confirm policy is assigned in dashboard for this device and target OS includes windows.
+
+2) PowerShell cmdlet access errors
+- Ensure PowerShell is running as Administrator.
+
+3) Rule not visible
+- Check PersistentStore explicitly:
+  Get-NetIPsecRule -PolicyStore PersistentStore
+
+4) Agent can enroll but policy apply fails
+- Pull latest code and rerun:
+  cd E:\PROJECTS\IPSec_Framework
+  git pull origin main
+  cd agent
+  python .\main.py

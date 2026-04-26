@@ -14,10 +14,11 @@ Complete guide to all documentation in the IPSec Framework. Start here to find w
    - How to enroll devices
    - How to manage policies
    - Troubleshooting common issues
+2. [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt) - Exact Windows agent commands and environment variables
 
-2. [DEPLOYMENT_LINUX.md](DEPLOYMENT_LINUX.md) - Deploy orchestrator on Linux
-3. [DEPLOYMENT_VERCEL.md](DEPLOYMENT_VERCEL.md) - Deploy orchestrator on cloud (Render/Vercel)
-4. [AGENT_REGISTRATION.md](AGENT_REGISTRATION.md) - Register agents on devices
+3. [DEPLOYMENT_LINUX.md](DEPLOYMENT_LINUX.md) - Deploy orchestrator on Linux
+4. [DEPLOYMENT_VERCEL.md](DEPLOYMENT_VERCEL.md) - Deploy orchestrator on cloud (Render/Vercel)
+5. [AGENT_REGISTRATION.md](AGENT_REGISTRATION.md) - Register agents on devices
 
 **Then learn about security**:
 - [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md) - Understand Zero Trust model
@@ -150,6 +151,19 @@ Quick guide to device enrollment:
 - ✅ Troubleshooting (common enrollment issues)
 
 **Best for**: Quick reference on enrolling first devices
+
+---
+
+### [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt)
+**Length**: Short | **Depth**: Operational | **For**: Windows operators
+
+Exact, copy-paste PowerShell sequence for:
+- Fresh terminal startup
+- Environment variable setup
+- Agent launch and prompts
+- Validation commands for policy/rule/SA state
+
+**Best for**: Reliable day-1/day-2 Windows agent operations
 
 ---
 

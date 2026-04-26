@@ -79,12 +79,20 @@ Deploy the Central Orchestrator to **Render** in minutes:
 Set up agents on your local machines:
 - **Complete Usage Guide**: [USAGE_GUIDE.md](docs/USAGE_GUIDE.md) - Start here for step-by-step instructions
 - **Agent Enrollment**: [AGENT_REGISTRATION.md](docs/AGENT_REGISTRATION.md) - How to register new devices
+- **Windows Agent Runbook**: [AGENT_WINDOWS_RUNBOOK.txt](docs/AGENT_WINDOWS_RUNBOOK.txt) - Exact env vars and commands for a fresh PowerShell session
 
 ### 3. Security & Advanced Topics
 - **Zero Trust Architecture**: [ZERO_TRUST_SETUP.md](docs/ZERO_TRUST_SETUP.md) - Complete Zero Trust implementation
 - **Compliance & Monitoring**: [COMPLIANCE_AND_MONITORING.md](docs/COMPLIANCE_AND_MONITORING.md) - Heartbeat, SA monitoring, leak detection
 - **Policy Routing & Drivers**: [POLICY_ROUTING_AND_DRIVERS.md](docs/POLICY_ROUTING_AND_DRIVERS.md) - Policy parsing and OS-specific dispatch
 - **Security Architecture**: [SECURITY_ARCHITECTURE.md](docs/SECURITY_ARCHITECTURE.md) - Cryptography, threat models, incident response
+
+### 4. Windows Driver Notes (Latest)
+- Windows dispatcher now applies tunnel policy using a staged PowerShell flow with explicit step logging.
+- For PSK IKEv2 tunnels, Phase 2 auth set creation is skipped.
+- Quick mode proposal uses Windows-supported parameters (`Encapsulation`, `ESPHash`, `Encryption`).
+- Rule creation enforces inbound and outbound security requirements.
+- See [AGENT_WINDOWS_RUNBOOK.txt](docs/AGENT_WINDOWS_RUNBOOK.txt) for exact terminal commands and verification steps.
 
 ---
 
@@ -175,11 +183,15 @@ Set up agents on your local machines:
 │   └── generate_keys.py  # Key pair generation utility
 │
 ├── docs/                  # Documentation
+│   ├── INDEX.md                    # Documentation navigation index
 │   ├── USAGE_GUIDE.md              # Complete usage guide (START HERE)
 │   ├── ZERO_TRUST_SETUP.md         # Zero Trust architecture deep dive
 │   ├── COMPLIANCE_AND_MONITORING.md # Phase 1 telemetry & monitoring
 │   ├── SECURITY_ARCHITECTURE.md    # Cryptography & threat models
+│   ├── POLICY_ROUTING_AND_DRIVERS.md # Policy parser and native driver behavior
+│   ├── API_TESTING_GUIDE.md        # API validation and endpoint testing
 │   ├── AGENT_REGISTRATION.md       # Device enrollment guide
+│   ├── AGENT_WINDOWS_RUNBOOK.txt   # Windows agent env vars and command sequence
 │   ├── DEPLOYMENT_LINUX.md         # Linux deployment instructions
 │   └── DEPLOYMENT_VERCEL.md        # Vercel/Render deployment
 │
