@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -77,6 +78,7 @@ class DriverDispatcher:
             return ApplyResult(success=False, os=self.os, message="Linux driver application failed", detail=str(exc))
 
     def _apply_windows(self, driver_block: dict[str, Any], config: dict[str, Any]) -> ApplyResult:
+        # Windows NetSecurity cmdlets require an elevated (Administrator) PowerShell session.
         connections = config.get("connections") or []
         ike_enc = config.get("ike_encryption")
         ike_int = config.get("ike_integrity")
@@ -84,95 +86,170 @@ class DriverDispatcher:
         esp_enc = config.get("esp_encryption")
         esp_int = config.get("esp_integrity")
         esp_dh = config.get("esp_dh_group")
-        auth_secret = config.get("auth_secret_ref") or ""
+
+        auth_secret_ref = str(driver_block.get("auth_secret_ref") or config.get("auth_secret_ref") or "")
+        psk = os.environ.get(auth_secret_ref, auth_secret_ref)
 
         logger.info(f"Windows IPSec policy application started: {len(connections)} connection(s)")
         logger.info(f"IKE crypto: {ike_enc}/{ike_int}/{ike_dh}")
         logger.info(f"ESP crypto: {esp_enc}/{esp_int}/{esp_dh}")
 
-        # Preferred path: build policy with proposal-based cmdlets in one script.
-        # This avoids invalid parameter usage on New-NetIPsecMainModeCryptoSet.
-        if connections and ike_enc and esp_enc and auth_secret:
-            try:
-                executed = 0
-                for connection in connections:
-                    name = str(connection.get("name") or "ipsec-rule")
-                    logger.info(f"Applying rule: {name}")
-                    mm_name = f"{name}-mm"
-                    qm_name = f"{name}-qm"
-                    auth_name = f"{name}-auth"
-                    local_address = connection.get("local_subnet") or connection.get("local_ip") or "Any"
-                    remote_address = connection.get("remote_subnet") or connection.get("remote_ip") or "Any"
+        if not (connections and ike_enc and ike_int and ike_dh and esp_enc and esp_int and esp_dh and psk):
+            return ApplyResult(
+                success=False,
+                os=self.os,
+                message="Invalid Windows policy payload",
+                detail="Missing connections/crypto/auth values",
+            )
 
-                    key_exchange_value = self._map_windows_dh_group(ike_dh) if ike_dh else None
+        def _run_powershell_step(step_label: str, command_text: str) -> tuple[bool, str]:
+            logger.info(step_label)
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", command_text],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                detail = (result.stderr or result.stdout or "").strip()
+                logger.error("%s FAILED: %s", step_label, detail)
+                return False, detail
+            logger.info("%s OK", step_label)
+            return True, ""
 
-                    mm_parts = [f"-Encryption {self._render_powershell_value(ike_enc)}"]
-                    if ike_int:
-                        mm_parts.append(f"-Hash {self._render_powershell_value(ike_int)}")
-                    if key_exchange_value:
-                        mm_parts.append(f"-KeyExchange {self._render_powershell_value(key_exchange_value)}")
+        try:
+            executed = 0
+            for connection in connections:
+                conn_name = str(connection.get("name") or "ipsec")
+                local_ip = connection.get("local_ip")
+                remote_ip = connection.get("remote_ip")
+                local_subnet = connection.get("local_subnet")
+                remote_subnet = connection.get("remote_subnet")
 
-                    qm_parts = [f"-Encapsulation ESP", f"-Encryption {self._render_powershell_value(esp_enc)}"]
-                    if esp_int:
-                        qm_parts.append(f"-ESPHash {self._render_powershell_value(esp_int)}")
-
-                    script = f"""
-$ErrorActionPreference = "Stop"
-
-Remove-NetIPsecRule -DisplayName {self._render_powershell_value(name)} -ErrorAction SilentlyContinue
-Remove-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_name)} -ErrorAction SilentlyContinue
-Remove-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -ErrorAction SilentlyContinue
-Remove-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -ErrorAction SilentlyContinue
-
-$mmProposal = New-NetIPsecMainModeCryptoProposal {' '.join(mm_parts)}
-New-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_name)} -DisplayName {self._render_powershell_value(mm_name)} -Proposal $mmProposal | Out-Null
-
-$qmProposal = New-NetIPsecQuickModeCryptoProposal {' '.join(qm_parts)}
-New-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_name)} -DisplayName {self._render_powershell_value(qm_name)} -Proposal $qmProposal | Out-Null
-
-$authProposal = New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(auth_secret)}
-New-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(auth_name)} -DisplayName {self._render_powershell_value(auth_name)} -Proposal $authProposal | Out-Null
-
-New-NetIPsecRule -PolicyStore PersistentStore -DisplayName {self._render_powershell_value(name)} `
-  -LocalAddress {self._render_powershell_value(local_address)} `
-  -RemoteAddress {self._render_powershell_value(remote_address)} `
-  -Phase1AuthSet {self._render_powershell_value(auth_name)} `
-  -MainModeCryptoSet {self._render_powershell_value(mm_name)} `
-  -QuickModeCryptoSet {self._render_powershell_value(qm_name)} `
-  -KeyModule IKEv2 `
-  -InboundSecurity Require `
-  -OutboundSecurity Require `
-  -Enabled True | Out-Null
-
-$createdRule = Get-NetIPsecRule -PolicyStore PersistentStore -DisplayName {self._render_powershell_value(name)} -ErrorAction SilentlyContinue
-if (-not $createdRule) {{
-    throw "IPSec rule was not found after creation"
-}}
-"""
-                    result = subprocess.run(
-                        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-                        capture_output=True,
-                        text=True,
-                        check=False,
+                if not all([local_ip, remote_ip, local_subnet, remote_subnet]):
+                    return ApplyResult(
+                        success=False,
+                        os=self.os,
+                        message=f"Invalid connection payload for {conn_name}",
+                        detail="local_ip/remote_ip/local_subnet/remote_subnet are required",
                     )
-                    if result.returncode != 0:
-                        logger.error(f"IPSec rule '{name}' failed: {result.stderr or result.stdout}")
-                        return ApplyResult(
-                            success=False,
-                            os=self.os,
-                            message=f"Failed to apply Windows IPsec rule {name}",
-                            detail=(result.stderr or result.stdout or ""),
-                        )
-                    logger.info(f"IPSec rule '{name}' applied successfully")
-                    logger.info(f"  Local subnet: {connection.get('local_subnet') or connection.get('local_ip')}")
-                    logger.info(f"  Remote subnet: {connection.get('remote_subnet') or connection.get('remote_ip')}")
-                    executed += 1
 
-                logger.info(f"✅ Windows IPSec policy application completed: {executed} rule(s) applied")
-                return ApplyResult(success=True, os=self.os, message=f"{executed} Windows IPsec rule(s) applied")
-            except Exception as exc:
-                logger.exception("Windows script-based driver application error")
-                return ApplyResult(success=False, os=self.os, message="Windows driver application failed", detail=str(exc))
+                phase1_auth_name = f"{conn_name}-ph1auth"
+                mm_crypto_name = f"{conn_name}-mmcrypto"
+                phase2_auth_name = f"{conn_name}-ph2auth"
+                qm_crypto_name = f"{conn_name}-qmcrypto"
+                rule_name = f"{conn_name}-rule"
+                mm_rule_name = f"{conn_name}-mmrule"
+
+                cleanup_cmd = f"""
+$ErrorActionPreference = "Stop"
+Remove-NetIPsecRule -Name {self._render_powershell_value(rule_name)} -ErrorAction SilentlyContinue
+Remove-NetIPsecMainModeRule -Name {self._render_powershell_value(mm_rule_name)} -ErrorAction SilentlyContinue
+Remove-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_crypto_name)} -ErrorAction SilentlyContinue
+Remove-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_crypto_name)} -ErrorAction SilentlyContinue
+Remove-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(phase1_auth_name)} -ErrorAction SilentlyContinue
+Remove-NetIPsecPhase2AuthSet -Name {self._render_powershell_value(phase2_auth_name)} -ErrorAction SilentlyContinue
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Cleanup: Removing previous objects...", cleanup_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Cleanup failed for {conn_name}", detail=detail)
+
+                step1_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecPhase1AuthSet `
+  -Name {self._render_powershell_value(phase1_auth_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} IKE Auth")} `
+  -Proposal (New-NetIPsecAuthProposal -Machine -PreSharedKey {self._render_powershell_value(psk)}) `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 1/6: Creating Phase1AuthSet...", step1_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 1 failed for {conn_name}", detail=detail)
+
+                step2_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecMainModeCryptoSet `
+  -Name {self._render_powershell_value(mm_crypto_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} MM Crypto")} `
+  -Proposal (New-NetIPsecMainModeCryptoProposal `
+      -Encryption {self._render_powershell_value(ike_enc)} `
+      -Hash {self._render_powershell_value(ike_int)} `
+      -KeyExchange {self._render_powershell_value(ike_dh)}) `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 2/6: Creating MainModeCryptoSet...", step2_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 2 failed for {conn_name}", detail=detail)
+
+                step3_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecPhase2AuthSet `
+  -Name {self._render_powershell_value(phase2_auth_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
+  -Proposal (New-NetIPsecAuthProposal -Machine) `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 3/6: Creating Phase2AuthSet...", step3_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 3 failed for {conn_name}", detail=detail)
+
+                step4_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecQuickModeCryptoSet `
+  -Name {self._render_powershell_value(qm_crypto_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} QM Crypto")} `
+  -Proposal (New-NetIPsecQuickModeCryptoProposal `
+      -Encapsulation Tunnel `
+      -ESPHash {self._render_powershell_value(esp_int)} `
+      -Encryption {self._render_powershell_value(esp_enc)} `
+      -DHGroup {self._render_powershell_value(esp_dh)}) `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 4/6: Creating QuickModeCryptoSet...", step4_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 4 failed for {conn_name}", detail=detail)
+
+                step5_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecRule `
+  -Name {self._render_powershell_value(rule_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
+  -Mode Tunnel `
+  -LocalAddress {self._render_powershell_value(local_subnet)} `
+  -RemoteAddress {self._render_powershell_value(remote_subnet)} `
+  -LocalTunnelEndpoint {self._render_powershell_value(local_ip)} `
+  -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
+  -Phase1AuthSet {self._render_powershell_value(phase1_auth_name)} `
+  -QuickModeCryptoSet {self._render_powershell_value(qm_crypto_name)} `
+  -KeyModule IKEv2 `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 5/6: Creating NetIPsecRule...", step5_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 5 failed for {conn_name}", detail=detail)
+
+                step6_cmd = f"""
+$ErrorActionPreference = "Stop"
+New-NetIPsecMainModeRule `
+  -Name {self._render_powershell_value(mm_rule_name)} `
+  -DisplayName {self._render_powershell_value(f"{conn_name} Main Mode Rule")} `
+  -LocalAddress {self._render_powershell_value(local_ip)} `
+  -RemoteAddress {self._render_powershell_value(remote_ip)} `
+  -Phase1AuthSet {self._render_powershell_value(phase1_auth_name)} `
+  -MainModeCryptoSet {self._render_powershell_value(mm_crypto_name)} `
+  -ErrorAction Stop
+"""
+                ok, detail = _run_powershell_step("[Windows driver] Step 6/6: Creating MainModeRule...", step6_cmd)
+                if not ok:
+                    return ApplyResult(success=False, os=self.os, message=f"Step 6 failed for {conn_name}", detail=detail)
+
+                logger.info("Applied Windows tunnel policy for connection '%s'", conn_name)
+                executed += 1
+
+            return ApplyResult(success=True, os=self.os, message=f"{executed} Windows IPsec rule(s) applied")
+        except Exception as exc:
+            logger.exception("Windows driver application error")
+            return ApplyResult(success=False, os=self.os, message="Windows driver application failed", detail=str(exc))
 
         commands = driver_block.get("commands") or []
         try:
