@@ -138,7 +138,6 @@ class DriverDispatcher:
 
                 phase1_auth_name = f"{conn_name}-ph1auth"
                 mm_crypto_name = f"{conn_name}-mmcrypto"
-                phase2_auth_name = f"{conn_name}-ph2auth"
                 qm_crypto_name = f"{conn_name}-qmcrypto"
                 rule_name = f"{conn_name}-rule"
                 mm_rule_name = f"{conn_name}-mmrule"
@@ -149,7 +148,6 @@ Remove-NetIPsecMainModeRule -Name {self._render_powershell_value(mm_rule_name)} 
 Remove-NetIPsecMainModeCryptoSet -Name {self._render_powershell_value(mm_crypto_name)} -ErrorAction SilentlyContinue
 Remove-NetIPsecQuickModeCryptoSet -Name {self._render_powershell_value(qm_crypto_name)} -ErrorAction SilentlyContinue
 Remove-NetIPsecPhase1AuthSet -Name {self._render_powershell_value(phase1_auth_name)} -ErrorAction SilentlyContinue
-Remove-NetIPsecPhase2AuthSet -Name {self._render_powershell_value(phase2_auth_name)} -ErrorAction SilentlyContinue
 """
                 _run_powershell_step("[Windows driver] Cleanup: Removing previous objects...", cleanup_cmd)
 
@@ -180,25 +178,9 @@ New-NetIPsecMainModeCryptoSet `
                 if not ok:
                     return ApplyResult(success=False, os=self.os, message=f"Step 2 failed for {conn_name}", detail=detail)
 
-#                 step3_cmd = f"""
-# $ErrorActionPreference = "Stop"
-# New-NetIPsecPhase2AuthSet `
-#   -Name {self._render_powershell_value(phase2_auth_name)} `
-#   -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
-#     -Default `
-#   -ErrorAction Stop
-# """
-                step3_cmd = f"""
-$ErrorActionPreference = "Stop"
-New-NetIPsecPhase2AuthSet `
-  -Name {self._render_powershell_value(phase2_auth_name)} `
-  -DisplayName {self._render_powershell_value(f"{conn_name} ESP Auth")} `
-    -Proposal (New-NetIPsecAuthProposal -Anonymous) `
-  -ErrorAction Stop
-"""
-                ok, detail = _run_powershell_step("[Windows driver] Step 3/6: Creating Phase2AuthSet...", step3_cmd)
-                if not ok:
-                    return ApplyResult(success=False, os=self.os, message=f"Step 3 failed for {conn_name}", detail=detail)
+                # Step 3 — skipped for PSK IKEv2 tunnels
+                # Phase2AuthSet is not required when Phase1 uses PSK.
+                logger.info("[Windows driver] Step 3/6: Phase2AuthSet skipped (PSK tunnel)")
 
                 step4_cmd = f"""
 $ErrorActionPreference = "Stop"
@@ -219,17 +201,19 @@ New-NetIPsecQuickModeCryptoSet `
                 step5_cmd = f"""
 $ErrorActionPreference = "Stop"
 New-NetIPsecRule `
-  -Name {self._render_powershell_value(rule_name)} `
-  -DisplayName {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
-  -Mode Tunnel `
-  -LocalAddress {self._render_powershell_value(local_subnet)} `
-  -RemoteAddress {self._render_powershell_value(remote_subnet)} `
-  -LocalTunnelEndpoint {self._render_powershell_value(local_ip)} `
-  -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
-  -Phase1AuthSet {self._render_powershell_value(phase1_auth_name)} `
-  -QuickModeCryptoSet {self._render_powershell_value(qm_crypto_name)} `
-  -KeyModule IKEv2 `
-  -ErrorAction Stop
+    -Name                 {self._render_powershell_value(rule_name)} `
+    -DisplayName          {self._render_powershell_value(f"{conn_name} IPsec Tunnel")} `
+    -Mode                 Tunnel `
+    -LocalAddress         {self._render_powershell_value(local_subnet)} `
+    -RemoteAddress        {self._render_powershell_value(remote_subnet)} `
+    -LocalTunnelEndpoint  {self._render_powershell_value(local_ip)} `
+    -RemoteTunnelEndpoint {self._render_powershell_value(remote_ip)} `
+    -Phase1AuthSet        {self._render_powershell_value(phase1_auth_name)} `
+    -QuickModeCryptoSet   {self._render_powershell_value(qm_crypto_name)} `
+    -KeyModule            IKEv2 `
+    -InboundSecurity      Require `
+    -OutboundSecurity     Require `
+    -ErrorAction          Stop
 """
                 ok, detail = _run_powershell_step("[Windows driver] Step 5/6: Creating NetIPsecRule...", step5_cmd)
                 if not ok:
