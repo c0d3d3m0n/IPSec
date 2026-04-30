@@ -14,7 +14,7 @@ Complete guide to all documentation in the IPSec Framework. Start here to find w
    - How to enroll devices
    - How to manage policies
    - Troubleshooting common issues
-2. [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt) - Exact Windows agent commands and environment variables
+2. [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt) - Finalized Windows agent commands and environment variables
 
 3. [DEPLOYMENT_LINUX.md](DEPLOYMENT_LINUX.md) - Deploy orchestrator on Linux
 4. [DEPLOYMENT_VERCEL.md](DEPLOYMENT_VERCEL.md) - Deploy orchestrator on cloud (Render/Vercel)
@@ -23,7 +23,7 @@ Complete guide to all documentation in the IPSec Framework. Start here to find w
 **Then learn about security**:
 - [ZERO_TRUST_SETUP.md](ZERO_TRUST_SETUP.md) - Understand Zero Trust model
 - [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) - Security deep dive
-- [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) - Phase 3 policy parsing and native driver dispatch
+- [POLICY_ROUTING_AND_DRIVERS.md](POLICY_ROUTING_AND_DRIVERS.md) - Completed Phase 3 policy parsing and native driver dispatch
 
 ---
 

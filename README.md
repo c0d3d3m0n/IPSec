@@ -65,6 +65,13 @@ graph TD
   - [x] Native driver dispatch on agents
 - [ ] **macOS Support**: Upcoming integration with native IPsec APIs
 
+### Completed Changes So Far
+- Windows policy application now uses a staged PowerShell driver flow with explicit step logging.
+- PSK IKEv2 Windows tunnels now skip Phase 2 auth set creation when it is not applicable.
+- Quick mode proposal generation now uses Windows-supported parameters only.
+- The policy parser now normalizes crypto values into Windows-accepted names before dispatch.
+- The documentation set now includes the Windows runbook, policy routing guide, and a navigation index.
+
 ---
 
 ## 🚀 Quick Start
@@ -87,7 +94,7 @@ Set up agents on your local machines:
 - **Policy Routing & Drivers**: [POLICY_ROUTING_AND_DRIVERS.md](docs/POLICY_ROUTING_AND_DRIVERS.md) - Policy parsing and OS-specific dispatch
 - **Security Architecture**: [SECURITY_ARCHITECTURE.md](docs/SECURITY_ARCHITECTURE.md) - Cryptography, threat models, incident response
 
-### 4. Windows Driver Notes (Latest)
+### 4. Windows Driver Notes (Completed)
 - Windows dispatcher now applies tunnel policy using a staged PowerShell flow with explicit step logging.
 - For PSK IKEv2 tunnels, Phase 2 auth set creation is skipped.
 - Quick mode proposal uses Windows-supported parameters (`Encapsulation`, `ESPHash`, `Encryption`).

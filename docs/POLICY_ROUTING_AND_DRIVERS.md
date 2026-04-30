@@ -1,10 +1,10 @@
 # 🧭 Policy Routing & Driver Dispatch Guide
 
-This guide covers Phase 3 of the framework: parsing uploaded policy JSON, normalizing crypto names, generating OS-specific configs, and dispatching the correct native driver block on each agent.
+This guide covers the completed Phase 3 flow of the framework: parsing uploaded policy JSON, normalizing crypto names, generating OS-specific configs, and dispatching the correct native driver block on each agent.
 
 ---
 
-## What Changed in Phase 3
+## Completed Phase 3 Flow
 
 The policy pipeline now works in two stages:
 
@@ -78,7 +78,7 @@ Windows agents receive a PowerShell command list containing cmdlets such as:
 
 The agent executes each cmdlet with `powershell -NonInteractive -Command`.
 
-Current Windows PSK tunnel flow applied by `agent/drivers/dispatcher.py`:
+The current Windows PSK tunnel flow applied by `agent/drivers/dispatcher.py` is now finalized and documented as follows:
 
 1. Cleanup existing rule and crypto/auth objects by deterministic names.
 2. Step 1/6: Create `Phase1AuthSet` using PSK.

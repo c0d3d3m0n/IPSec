@@ -124,7 +124,7 @@ Next time you log in:
 
 #### On Windows (Administrator required)
 
-Use the full runbook for a fresh terminal session:
+Use the finalized runbook for a fresh terminal session:
 - [AGENT_WINDOWS_RUNBOOK.txt](AGENT_WINDOWS_RUNBOOK.txt)
 
 Quick sequence:
@@ -157,7 +157,7 @@ Enter Enrollment Number: PROD-WIN-01
 Enter Pre-Shared Key (leave blank to reuse Enrollment Token):
 ```
 
-Expected output includes:
+Expected output for the completed Windows flow includes:
 
 ```
 [INFO] Device enrolled successfully
