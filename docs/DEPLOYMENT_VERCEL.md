@@ -33,7 +33,7 @@ Add the following variable to connect the frontend to the backend:
 > Ensure your production frontend uses the API subdomain directly. If `VITE_API_URL` is not set, the app now defaults to `https://api.ipsecvault.tech`.
 
 ### 4. Deploy
-Click **Deploy**. Vercel will build your React application and provide a production URL (e.g., `https://ipsec-console.vercel.app`).
+Click **Deploy**. Vercel will build your React application and provide a production URL (e.g., `https://www.ipsecvault.tech`).
 
 ---
 

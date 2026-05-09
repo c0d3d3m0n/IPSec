@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://ipsec-console.vercel.app/</loc>
+    <loc>https://www.ipsecvault.tech/</loc>
     <priority>1.00</priority>
     <changefreq>daily</changefreq>
     <lastmod>2026-05-09</lastmod>
   </url>
   <url>
-    <loc>https://ipsec-console.vercel.app/login</loc>
+    <loc>https://www.ipsecvault.tech/login</loc>
     <priority>0.80</priority>
     <changefreq>monthly</changefreq>
     <lastmod>2026-05-09</lastmod>
   </url>
   <url>
-    <loc>https://ipsec-console.vercel.app/dashboard</loc>
+    <loc>https://www.ipsecvault.tech/dashboard</loc>
     <priority>0.80</priority>
     <changefreq>daily</changefreq>
     <lastmod>2026-05-09</lastmod>
   </url>
   <url>
-    <loc>https://ipsec-console.vercel.app/policies</loc>
+    <loc>https://www.ipsecvault.tech/policies</loc>
     <priority>0.70</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-05-09</lastmod>
   </url>
   <url>
-    <loc>https://ipsec-console.vercel.app/devices</loc>
+    <loc>https://www.ipsecvault.tech/devices</loc>
     <priority>0.70</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-05-09</lastmod>
