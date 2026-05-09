@@ -1,0 +1,5 @@
+User-agent: *
+Disallow:
+
+# Sitemap location
+Sitemap: https://ipsec-console.vercel.app/sitemap.xml
