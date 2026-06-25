@@ -67,9 +67,15 @@ class DriverDispatcher:
                 child_name = f"{connection_name}-child"
                 start_action = ((connection.get("children") or {}).get(child_name) or {}).get("start_action")
                 if start_action == "start":
-                    init_result = subprocess.run(["swanctl", "--initiate", f"--child={child_name}"], capture_output=True, text=True, check=False)
-                    if init_result.returncode != 0:
-                        return ApplyResult(success=False, os=self.os, message=f"Failed to initiate {child_name}", detail=(init_result.stderr or init_result.stdout or ""))
+                    try:
+                        # Spawn the initiation in the background to prevent blocking, independent of strongSwan CLI version
+                        subprocess.Popen(
+                            ["swanctl", "--initiate", f"--child={child_name}"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                    except Exception as p_exc:
+                        logger.warning(f"Failed to spawn background initiation for {child_name}: {p_exc}")
                     initiated += 1
 
             return ApplyResult(success=True, os=self.os, message=f"{len(connections)} connections loaded")
@@ -381,8 +387,8 @@ New-NetIPsecMainModeRule `
                     self._append_conf_block(lines, item, indent + 2)
                     lines.append(f"{indent_text}}}")
                 elif isinstance(item, list):
-                    rendered = ", ".join(self._render_conf_scalar(entry) for entry in item)
-                    lines.append(f"{indent_text}{key} = [ {rendered} ]")
+                    rendered = ", ".join(str(entry) for entry in item)
+                    lines.append(f"{indent_text}{key} = {rendered}")
                 else:
                     lines.append(f"{indent_text}{key} = {self._render_conf_scalar(item)}")
         else:
