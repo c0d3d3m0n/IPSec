@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, Lock, User } from 'lucide-react';
+import ToastStack from '../components/ToastStack';
 
 function MasterAdminLogin() {
   const [username, setUsername] = useState('');
@@ -11,6 +13,19 @@ function MasterAdminLogin() {
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  
+  const addToast = (type, message) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const dismissToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
   
   const navigate = useNavigate();
 
@@ -101,130 +116,142 @@ function MasterAdminLogin() {
 
     } catch (err) {
       setError(err.message || 'Verification failed');
+      addToast('error', err.message || 'Verification failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-slate-800 p-8 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-            Master Admin Portal
-          </h2>
-        </div>
-        
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 rounded-md">
-            <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+    <div className="login-page">
+      <div className="orb orb-purple" />
+      <div className="orb orb-teal" />
+
+      <div className="login-card glass-surface">
+        <div className="login-logo-wrap">
+          <div className="login-logo-badge glass-surface">
+            <ShieldCheck size={28} />
           </div>
-        )}
+        </div>
+
+        <h1 className="login-title">Master Admin Portal</h1>
+        <p className="login-subtitle">System & Tenant Orchestration</p>
 
         {step === 'login' && (
-          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-            <div className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  required
-                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-slate-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-slate-700 transition-all duration-200"
-                  placeholder="Master Admin Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  required
-                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-slate-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-slate-700 transition-all duration-200"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
+          <form onSubmit={handleLogin} className="login-form">
+            <label className="field-wrap">
+              <span className="field-icon"><User size={16} /></span>
+              <input
+                className="input-field"
+                type="text"
+                placeholder="Master Admin Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </label>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-md"
-              >
-                {loading ? 'Authenticating...' : 'Sign In'}
-              </button>
-            </div>
+            <label className="field-wrap">
+              <span className="field-icon"><Lock size={16} /></span>
+              <input
+                className="input-field"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </label>
+
+            {error ? <div className="error-panel glass-surface">{error}</div> : null}
+
+            <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
+              {loading ? <span className="spinner" /> : null}
+              <span>Sign In</span>
+            </button>
           </form>
         )}
 
         {step === 'setup_totp' && (
-          <form className="mt-8 space-y-6" onSubmit={handleTotpSubmit}>
-            <div className="text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          <form onSubmit={handleTotpSubmit} className="login-form">
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '1rem' }}>
                 First time login requires setting up Two-Factor Authentication. Scan this QR code with Google Authenticator or Authy.
               </p>
               {setupData?.qr_base64 && (
-                <img src={`data:image/png;base64,${setupData.qr_base64}`} alt="TOTP QR Code" className="mx-auto border-4 border-white rounded-lg shadow-lg mb-4" />
+                <img 
+                  src={`data:image/png;base64,${setupData.qr_base64}`} 
+                  alt="TOTP QR Code" 
+                  style={{ margin: '0 auto', border: '4px solid white', borderRadius: '0.5rem', marginBottom: '1rem' }} 
+                />
               )}
-              <p className="text-xs font-mono bg-gray-100 dark:bg-slate-700 p-2 rounded break-all select-all">
+              <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', background: 'rgba(255,255,255,0.1)', padding: '0.5rem', borderRadius: '0.25rem', userSelect: 'all' }}>
                 {setupData?.secret}
               </p>
             </div>
             
-            <div>
+            <label className="field-wrap">
+              <span className="field-icon"><ShieldCheck size={16} /></span>
               <input
+                className="input-field"
+                style={{ textAlign: 'center', letterSpacing: '0.25em', fontSize: '1.25rem' }}
                 type="text"
-                required
-                className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-slate-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-slate-700 transition-all duration-200 text-center tracking-widest text-xl"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="000000"
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value)}
                 maxLength={6}
+                required
+                autoFocus
               />
-            </div>
+            </label>
             
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 shadow-md"
-            >
-              Verify & Complete Setup
+            {error ? <div className="error-panel glass-surface">{error}</div> : null}
+
+            <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
+              {loading ? <span className="spinner" /> : null}
+              <span>Verify & Complete Setup</span>
             </button>
           </form>
         )}
 
         {step === 'totp' && (
-          <form className="mt-8 space-y-6" onSubmit={handleTotpSubmit}>
-            <div className="text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          <form onSubmit={handleTotpSubmit} className="login-form">
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>
                 Enter your Authenticator Code
               </p>
             </div>
-            <div>
+            
+            <label className="field-wrap">
+              <span className="field-icon"><ShieldCheck size={16} /></span>
               <input
+                className="input-field"
+                style={{ textAlign: 'center', letterSpacing: '0.25em', fontSize: '1.25rem' }}
                 type="text"
-                required
-                autoFocus
-                className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-slate-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-slate-700 transition-all duration-200 text-center tracking-widest text-xl"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="000000"
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value)}
                 maxLength={6}
+                required
+                autoFocus
               />
-            </div>
+            </label>
             
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 shadow-md"
-            >
-              Verify
+            {error ? <div className="error-panel glass-surface">{error}</div> : null}
+
+            <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
+              {loading ? <span className="spinner" /> : null}
+              <span>Verify</span>
             </button>
           </form>
         )}
 
       </div>
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
