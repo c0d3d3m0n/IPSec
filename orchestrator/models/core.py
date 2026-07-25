@@ -1,11 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .database import Base
-
-# Re-export new models so existing imports like `from orchestrator.models import User` still work
-from orchestrator.models.tenant import Tenant  # noqa: F401
-from orchestrator.models.user import User, UserRole  # noqa: F401
+from orchestrator.database import Base
 
 
 class Policy(Base):
