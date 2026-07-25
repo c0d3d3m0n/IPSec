@@ -3,7 +3,7 @@ from typing import Optional
 from jose import jwt
 from passlib.context import CryptContext
 import os
-from .config import get_settings
+from orchestrator.config import get_settings
 
 # Password hashing — bcrypt primary, pbkdf2_sha256 as deprecated fallback for auto-upgrade
 pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
