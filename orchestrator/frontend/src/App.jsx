@@ -38,19 +38,19 @@ function App() {
         
         {/* Tenant Admin Routes */}
         <Route 
-          path="/_tenant_admin" 
-          element={!authenticated ? <TenantAdminLogin onLogin={handleLogin} /> : <Navigate to="/_tenant_admin/dashboard" />} 
+          path="/_tenent_admin" 
+          element={!authenticated ? <TenantAdminLogin onLogin={handleLogin} /> : <Navigate to="/_tenent_admin/dashboard" />} 
         />
         <Route 
-          path="/_tenant_admin/dashboard"
-          element={authenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/_tenant_admin" />} 
+          path="/_tenent_admin/dashboard"
+          element={authenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/_tenent_admin" />} 
         />
         <Route 
-          path="/_tenant_admin/users"
+          path="/_tenent_admin/users"
           element={
             authenticated && authService.canWrite() 
               ? <UserManagement onLogout={handleLogout} /> 
-              : <Navigate to={authenticated ? "/_tenant_admin/dashboard" : "/_tenant_admin"} />
+              : <Navigate to={authenticated ? "/_tenent_admin/dashboard" : "/_tenent_admin"} />
           } 
         />
 

@@ -82,7 +82,7 @@ const authService = {
     sessionStorage.removeItem(ROLE_KEY);
     sessionStorage.removeItem(TENANT_NAME_KEY);
     sessionStorage.removeItem(USERNAME_KEY);
-    window.location.assign('/_tenant_admin');
+    window.location.assign('/_tenent_admin');
   },
 
   isAuthenticated() {

@@ -20,7 +20,7 @@ function LandingPage() {
         </p>
 
         <div className="landing-actions">
-          <button className="btn btn-primary landing-action-primary" onClick={() => navigate('/_tenant_admin')}>
+          <button className="btn btn-primary landing-action-primary" onClick={() => navigate('/_tenent_admin')}>
             Get Started
           </button>
           <a
