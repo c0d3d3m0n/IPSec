@@ -52,3 +52,10 @@ class Device(Base):
     certificates = relationship("DeviceCertificate", back_populates="device")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=True)

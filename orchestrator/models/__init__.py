@@ -1,4 +1,4 @@
-from orchestrator.models.core import Policy, Device
+from orchestrator.models.core import Policy, Device, SystemSettings
 from orchestrator.models.tenant import Tenant
 from orchestrator.models.user import User, UserRole
 from orchestrator.models.audit import AuditLog
@@ -14,5 +14,6 @@ __all__ = [
     "AuditLog",
     "ComplianceRecord",
     "DeviceCertificate",
-    "RevokedCertificate"
+    "RevokedCertificate",
+    "SystemSettings"
 ]

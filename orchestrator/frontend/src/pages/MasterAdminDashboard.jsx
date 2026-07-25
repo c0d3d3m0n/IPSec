@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ENDPOINTS } from '../config/api';
-import authService from '../services/authService';
+
 import ToastStack from '../components/ToastStack';
 
-function PlatformAdmin({ onLogout }) {
+function MasterAdminDashboard({ onLogout }) {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [tenants, setTenants] = useState([]);
@@ -316,4 +316,4 @@ function PlatformAdmin({ onLogout }) {
   );
 }
 
-export default PlatformAdmin;
+export default MasterAdminDashboard;

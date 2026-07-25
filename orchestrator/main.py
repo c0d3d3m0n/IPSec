@@ -19,9 +19,8 @@ from sqlalchemy import inspect, text
 from orchestrator.database import engine, Base
 from orchestrator.routers import devices, policies, auth
 from orchestrator.routers.compliance import router as compliance_router
-from orchestrator.routers.admin import router as admin_router
+from orchestrator.routers.master_admin import router as master_admin_router
 from orchestrator.routers.users import router as users_router
-from orchestrator.seed_admin import seed_admin as run_seed
 from orchestrator.config import get_settings
 from orchestrator.rate_limiter import limiter
 from orchestrator.middleware.zero_trust import ZeroTrustMiddleware
@@ -251,12 +250,6 @@ async def lifespan(app: FastAPI):
     
     # DEBUG: Log CORS configuration
     allowed_origins = _get_allowed_origins()
-    print(f"✅ CORS Allowed Origins: {allowed_origins}")
-    
-    try:
-        run_seed()
-    except Exception as e:
-        print(f"Auto-seeding failed: {e}")
     yield
 
 # Create tables
@@ -297,7 +290,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
 app.include_router(policies.router, prefix="/api")
 app.include_router(compliance_router, prefix="/api")
-app.include_router(admin_router, prefix="/api")
+app.include_router(master_admin_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 
 @app.get("/api/ping")

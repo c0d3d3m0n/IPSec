@@ -8,7 +8,6 @@ from orchestrator.database import Base
 
 
 class UserRole(str, enum.Enum):
-    MASTER_ADMIN = "master_admin"
     TENANT_ADMIN = "tenant_admin"
     TENANT_VIEWER = "tenant_viewer"
 
@@ -21,7 +20,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRole), nullable=False)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)  # NULL for master_admin
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     is_active = Column(Boolean, default=True)
     totp_secret = Column(String, nullable=True)
     totp_enabled = Column(Boolean, default=False)

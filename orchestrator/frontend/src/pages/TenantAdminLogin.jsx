@@ -3,7 +3,7 @@ import { ShieldCheck, Lock, User } from 'lucide-react';
 import authService from '../services/authService';
 import ToastStack from '../components/ToastStack';
 
-function Login({ onLogin }) {
+function TenantAdminLogin({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -134,4 +134,4 @@ function Login({ onLogin }) {
   );
 }
 
-export default Login;
+export default TenantAdminLogin;

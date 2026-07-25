@@ -71,21 +71,9 @@ const authService = {
     return sessionStorage.getItem(USERNAME_KEY) || null;
   },
 
-  isMasterAdmin() {
-    return this.getRole() === 'master_admin';
-  },
-
-  isTenantAdmin() {
-    return this.getRole() === 'tenant_admin';
-  },
-
-  isTenantViewer() {
-    return this.getRole() === 'tenant_viewer';
-  },
-
   canWrite() {
     const role = this.getRole();
-    return role === 'master_admin' || role === 'tenant_admin';
+    return role === 'tenant_admin';
   },
 
   logout() {
@@ -94,7 +82,7 @@ const authService = {
     sessionStorage.removeItem(ROLE_KEY);
     sessionStorage.removeItem(TENANT_NAME_KEY);
     sessionStorage.removeItem(USERNAME_KEY);
-    window.location.assign('/login');
+    window.location.assign('/_tenant_admin');
   },
 
   isAuthenticated() {

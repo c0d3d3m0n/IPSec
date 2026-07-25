@@ -73,14 +73,9 @@ def _get_role_value(role) -> str:
 def get_tenant_filter(current_user: User = Depends(get_current_user)):
     """Return tenant_id for filtering queries.
     
-    - MASTER_ADMIN: returns None (no filter — sees everything)
     - TENANT_ADMIN / TENANT_VIEWER: returns current_user.tenant_id
-    - Raises 403 if a non-master user has no tenant_id
+    - Raises 403 if user has no tenant_id
     """
-    role_val = _get_role_value(current_user.role)
-    if role_val == UserRole.MASTER_ADMIN.value:
-        return None
-    
     if current_user.tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -91,22 +86,12 @@ def get_tenant_filter(current_user: User = Depends(get_current_user)):
 
 
 def require_tenant_admin(current_user: User = Depends(get_current_user)):
-    """Require TENANT_ADMIN or MASTER_ADMIN role."""
+    """Require TENANT_ADMIN role."""
     role_val = _get_role_value(current_user.role)
-    if role_val not in (UserRole.MASTER_ADMIN.value, UserRole.TENANT_ADMIN.value):
+    if role_val != UserRole.TENANT_ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions — tenant admin or higher required",
-        )
-    return current_user
-
-
-def require_master_admin(current_user: User = Depends(get_current_user)):
-    """Require MASTER_ADMIN role."""
-    if current_user.role != UserRole.MASTER_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions — master admin required",
+            detail="Insufficient permissions — tenant admin required",
         )
     return current_user
 
