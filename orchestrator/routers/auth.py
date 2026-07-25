@@ -80,7 +80,11 @@ def login_for_access_token(
             tenant_name = tenant.name
 
     # Build JWT identity with role and tenant_id
-    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if hasattr(user.role, "value"):
+        role_value = user.role.value
+    else:
+        role_str = str(user.role)
+        role_value = role_str.split(".")[1].lower() if role_str.startswith("UserRole.") else role_str.lower()
     manager = TokenManager()
     identity = {
         "sub": user.username,
