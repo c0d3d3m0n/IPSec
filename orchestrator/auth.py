@@ -10,23 +10,8 @@ from .models.user import UserRole
 from .security import decode_access_token
 
 
-def _load_module(module_name: str, file_path: Path):
-    if module_name in sys.modules:
-        return sys.modules[module_name]
+from orchestrator.security.token_manager import TokenManager
 
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parent
-_token_manager_module = _load_module("orchestrator_security_token_manager", _BASE_DIR / "security" / "token_manager.py")
-TokenManager = _token_manager_module.TokenManager
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

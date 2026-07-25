@@ -14,29 +14,8 @@ from orchestrator import models
 from orchestrator.database import SessionLocal
 
 
-def _load_module(module_name: str, file_path: Path):
-    import importlib.util
-    import sys
-
-    if module_name in sys.modules:
-        return sys.modules[module_name]
-
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parents[1]
-_ca_module = _load_module("orchestrator_security_certificate_authority", _BASE_DIR / "security" / "certificate_authority.py")
-_trust_module = _load_module("orchestrator_security_trust_evaluator", _BASE_DIR / "security" / "trust_evaluator.py")
-
-InternalCA = _ca_module.InternalCA
-TrustEvaluator = _trust_module.TrustEvaluator
+from orchestrator.security.certificate_authority import InternalCA
+from orchestrator.security.trust_evaluator import TrustEvaluator
 
 
 logger = logging.getLogger(__name__)
