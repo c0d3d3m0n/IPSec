@@ -10,23 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 
-def _load_certificate_model_module():
-    import importlib.util
-    import sys
-
-    module_name = "orchestrator_models_certificate"
-    if module_name in sys.modules:
-        return sys.modules[module_name]
-
-    file_path = Path(__file__).resolve().parents[1] / "models" / "certificate.py"
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load certificate models module")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+from orchestrator.models.certificate import RefreshToken
 
 
 def _load_server_keys() -> tuple[str, str]:
@@ -82,8 +66,6 @@ class TokenManager:
         return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
 
     def create_refresh_token(self, data: dict[str, Any], db) -> str:
-        models_module = _load_certificate_model_module()
-        RefreshToken = models_module.RefreshToken
 
         now = datetime.now(timezone.utc)
         payload = data.copy()
@@ -123,8 +105,6 @@ class TokenManager:
         return payload
 
     def rotate_refresh_token(self, old_token: str, db) -> tuple[str, str]:
-        models_module = _load_certificate_model_module()
-        RefreshToken = models_module.RefreshToken
 
         try:
             payload = jwt.decode(old_token, self.public_key, algorithms=[self.algorithm])

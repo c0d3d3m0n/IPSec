@@ -7,7 +7,10 @@ settings = get_settings()
 connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
 
 engine = create_engine(
-    settings.DATABASE_URL, connect_args=connect_args
+    settings.DATABASE_URL, 
+    connect_args=connect_args,
+    pool_pre_ping=True,
+    pool_recycle=300
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
