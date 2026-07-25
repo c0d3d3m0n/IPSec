@@ -3,6 +3,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
 
+# Re-export new models so existing imports like `from orchestrator.models import User` still work
+from orchestrator.models.tenant import Tenant  # noqa: F401
+from orchestrator.models.user import User, UserRole  # noqa: F401
+
+
 class Policy(Base):
     __tablename__ = "policies"
 
@@ -13,26 +18,14 @@ class Policy(Base):
     # Unified JSON Config
     config_data = Column(Text, nullable=False) # Store the unified JSON object as a text block
     
+    # Multi-tenant
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    tenant = relationship("Tenant", back_populates="policies")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     devices = relationship("Device", back_populates="policy")
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
-    totp_secret = Column(String, nullable=True)
-    totp_enabled = Column(Boolean, default=False)
-    failed_attempts = Column(Integer, default=0)
-    locked_until = Column(DateTime(timezone=True), nullable=True)
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Device(Base):
@@ -53,6 +46,10 @@ class Device(Base):
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     
+    # Multi-tenant
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    tenant = relationship("Tenant", back_populates="devices")
+
     policy_id = Column(Integer, ForeignKey("policies.id"), nullable=True)
     policy = relationship("Policy", back_populates="devices")
     compliance_records = relationship("ComplianceRecord", back_populates="device")

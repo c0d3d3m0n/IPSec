@@ -28,6 +28,17 @@ export const ENDPOINTS = {
   assignPolicy: (policyId, deviceId) => `${API_BASE}/api/policies/${policyId}/assign/${deviceId}`,
   unassignPolicy: (deviceId) => `${API_BASE}/api/policies/unassign/${deviceId}`,
 
+  // Admin (master_admin only)
+  adminTenants: `${API_BASE}/api/admin/tenants/`,
+  adminTenantById: (id) => `${API_BASE}/api/admin/tenants/${id}`,
+  adminPlatformStats: `${API_BASE}/api/admin/platform/stats`,
+
+  // Users
+  users: `${API_BASE}/api/users/`,
+  userById: (id) => `${API_BASE}/api/users/${id}`,
+  userRole: (id) => `${API_BASE}/api/users/${id}/role`,
+  userMe: `${API_BASE}/api/users/me`,
+
   // Health
   ping: `${API_BASE}/api/ping`,
   health: `${API_BASE}/health`,

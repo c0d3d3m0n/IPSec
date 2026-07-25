@@ -10,12 +10,29 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     
-    # Admin Credentials
+    # Legacy Admin Credentials (backward compat)
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"
 
+    # Master Admin Credentials (Phase 4)
+    MASTER_ADMIN_USERNAME: str = ""
+    MASTER_ADMIN_EMAIL: str = ""
+    MASTER_ADMIN_PASSWORD: str = ""
+
     class Config:
         env_file = ".env"
+
+    @property
+    def effective_master_username(self) -> str:
+        return self.MASTER_ADMIN_USERNAME or self.ADMIN_USERNAME
+
+    @property
+    def effective_master_password(self) -> str:
+        return self.MASTER_ADMIN_PASSWORD or self.ADMIN_PASSWORD
+
+    @property
+    def effective_master_email(self) -> str:
+        return self.MASTER_ADMIN_EMAIL or f"{self.effective_master_username}@ipsecvault.tech"
 
     def is_production(self) -> bool:
         return self.ENVIRONMENT.strip().lower() in {"prod", "production"}
@@ -30,10 +47,10 @@ class Settings(BaseSettings):
         insecure_values = []
         if self.SECRET_KEY == "change_this_in_production_secret_key":
             insecure_values.append("SECRET_KEY")
-        if self.ADMIN_USERNAME == "admin":
-            insecure_values.append("ADMIN_USERNAME")
-        if self.ADMIN_PASSWORD == "admin123":
-            insecure_values.append("ADMIN_PASSWORD")
+        if self.effective_master_username == "admin":
+            insecure_values.append("MASTER_ADMIN_USERNAME / ADMIN_USERNAME")
+        if self.effective_master_password == "admin123":
+            insecure_values.append("MASTER_ADMIN_PASSWORD / ADMIN_PASSWORD")
         if self.DATABASE_URL.startswith("sqlite"):
             insecure_values.append("DATABASE_URL")
 

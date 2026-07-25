@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from .. import database, models, security, schemas
-from orchestrator.auth import get_current_admin_user
+from orchestrator.auth import get_current_user, require_tenant_admin
+from orchestrator.models.user import UserRole
 from orchestrator.rate_limiter import limiter
 
 router = APIRouter(
@@ -54,6 +55,13 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is inactive",
+        )
+
     now = datetime.now(timezone.utc)
     if user.locked_until and user.locked_until.replace(tzinfo=timezone.utc) > now:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked due to failed logins")
@@ -77,20 +85,42 @@ def login_for_access_token(
 
     user.failed_attempts = 0
     user.locked_until = None
+    user.last_login = now
     db.commit()
     
+    # Get tenant name for response
+    tenant_name = None
+    if user.tenant_id:
+        tenant = db.query(models.Tenant).filter(models.Tenant.id == user.tenant_id).first()
+        if tenant:
+            tenant_name = tenant.name
+
+    # Build JWT identity with role and tenant_id
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
     manager = TokenManager()
-    identity = {"sub": user.username, "admin_id": user.id}
+    identity = {
+        "sub": user.username,
+        "user_id": user.id,
+        "role": role_value,
+        "tenant_id": user.tenant_id,
+    }
     access_token = manager.create_access_token(identity)
     refresh_token = manager.create_refresh_token(identity, db)
-    return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "refresh_token": refresh_token,
+        "role": role_value,
+        "tenant_name": tenant_name,
+    }
 
 
 @router.post("/totp/setup", response_model=schemas.TOTPSetupResponse)
 def setup_totp(
     request: Request,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user),
+    current_user: models.User = Depends(get_current_user),
 ):
     manager = TOTPManager()
     secret = manager.generate_secret()
@@ -112,7 +142,7 @@ def setup_totp(
 def verify_totp(
     body: schemas.TOTPVerifyRequest,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user),
+    current_user: models.User = Depends(get_current_user),
 ):
     if not current_user.totp_secret:
         raise HTTPException(status_code=400, detail="TOTP not initialized")

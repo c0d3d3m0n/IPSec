@@ -4,14 +4,14 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, Header
 from sqlalchemy.orm import Session
 
 from orchestrator import database, models
 from orchestrator.rate_limiter import limiter
-from orchestrator.auth import get_current_admin_user
+from orchestrator.auth import get_current_user, get_tenant_filter
 
 
 router = APIRouter(prefix="/devices", tags=["compliance"])
@@ -182,6 +182,7 @@ def post_compliance(
         plaintext_leak_detected=report.plaintext_leak_detected,
         active_sa_count=len(report.active_sas),
         raw_report=report.model_dump(mode="json"),
+        tenant_id=device.tenant_id,  # Inherit from device
     )
     db.add(record)
     db.commit()

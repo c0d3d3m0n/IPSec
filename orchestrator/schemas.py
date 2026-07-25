@@ -1,9 +1,7 @@
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
-
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
+from datetime import datetime
+
 
 # --- Unified Policy Schemas ---
 class TargetSchema(BaseModel):
@@ -69,6 +67,7 @@ class PolicyResponse(BaseModel):
     name: str
     description: Optional[str] = None
     config_data: Dict[str, Any]
+    tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -78,31 +77,115 @@ class PolicyResponse(BaseModel):
 class PolicyBulkUpload(BaseModel):
     policies: List[UnifiedPolicyCreate]
 
-# User & Auth Schemas
-class UserBase(BaseModel):
-    username: str
 
-class UserCreate(UserBase):
-    password: str
+# --- Tenant Schemas ---
+class TenantCreate(BaseModel):
+    name: str
+    slug: str
+    plan: str = "free"
+    max_devices: int = 5
+    max_users: int = 2
+    contact_email: Optional[str] = None
+    # First admin user for the tenant
+    admin_username: str
+    admin_email: str
+    admin_password: str
 
-class User(UserBase):
+class TenantUpdate(BaseModel):
+    plan: Optional[str] = None
+    max_devices: Optional[int] = None
+    max_users: Optional[int] = None
+    is_active: Optional[bool] = None
+    contact_email: Optional[str] = None
+
+class TenantResponse(BaseModel):
     id: int
+    name: str
+    slug: str
+    plan: str
     is_active: bool
-    is_admin: bool
+    max_devices: int
+    max_users: int
+    contact_email: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+class TenantListItem(TenantResponse):
+    device_count: int = 0
+    user_count: int = 0
+    policy_count: int = 0
+    compliant_device_count: int = 0
+    last_activity: Optional[datetime] = None
+
+class TenantDetail(TenantResponse):
+    users: List["UserResponse"] = []
+    devices: List["DeviceWithCompliance"] = []
+    policies: List[PolicyResponse] = []
+    compliance_summary: Dict[str, Any] = {}
+
+class PlatformStats(BaseModel):
+    total_tenants: int = 0
+    active_tenants: int = 0
+    total_devices: int = 0
+    active_devices: int = 0
+    total_policies: int = 0
+    compliance_rate: float = 0.0
+    violations_today: int = 0
+    api_calls_today: int = 0
+
+
+# --- User & Auth Schemas ---
+class UserBase(BaseModel):
+    username: str
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+    role: str = "tenant_viewer"  # tenant_admin | tenant_viewer
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    role: str
+    tenant_id: Optional[int] = None
+    is_active: bool
+    totp_enabled: bool = False
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UserRoleUpdate(BaseModel):
+    role: str  # tenant_admin | tenant_viewer
+
+class UserProfile(BaseModel):
+    id: int
+    username: str
+    email: str
+    role: str
+    tenant_name: Optional[str] = None
+    plan: Optional[str] = None
+    is_active: bool
+    totp_enabled: bool = False
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     refresh_token: Optional[str] = None
+    role: Optional[str] = None
+    tenant_name: Optional[str] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None
 
-# Device Schemas
+
+# --- Device Schemas ---
 class DeviceBase(BaseModel):
     hostname: Optional[str] = None
     os_type: Optional[str] = None
@@ -134,11 +217,14 @@ class Device(DeviceBase):
     last_seen: Optional[datetime] = None
     policy_id: Optional[int] = None
     policy: Optional[PolicyResponse] = None
+    tenant_id: Optional[int] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class DeviceWithCompliance(Device):
+    latest_compliance: Optional[bool] = None
 
 class DeviceEnrollmentResponse(Device):
     cert_pem: str
@@ -146,15 +232,14 @@ class DeviceEnrollmentResponse(Device):
     ca_cert_pem: str
 
 
+# --- TOTP Schemas ---
 class TOTPSetupResponse(BaseModel):
     qr_code_png_base64: str
     secret: str
     provisioning_uri: str
 
-
 class TOTPVerifyRequest(BaseModel):
     totp_code: str
-
 
 class TOTPVerifyResponse(BaseModel):
     verified: bool

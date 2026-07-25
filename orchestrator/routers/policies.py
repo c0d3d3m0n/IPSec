@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
 from sqlalchemy.orm import Session
-from typing import List, Any
+from typing import List, Any, Optional
 import json
 import importlib.util
 import sys
@@ -12,7 +12,7 @@ router = APIRouter(
     tags=["policies"]
 )
 
-from ..auth import get_current_admin_user
+from ..auth import get_current_user, get_current_admin_user, get_tenant_filter, require_tenant_admin
 
 
 def _load_module(module_name: str, file_path: Path):
@@ -54,16 +54,22 @@ def _safe_config_data(raw_value: Any) -> dict:
 def create_policy(
     policy: schemas.UnifiedPolicyCreate, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    db_policy = db.query(models.Policy).filter(models.Policy.name == policy.policy_id).first()
+    # Check uniqueness within tenant scope
+    query = db.query(models.Policy).filter(models.Policy.name == policy.policy_id)
+    if tenant_filter is not None:
+        query = query.filter(models.Policy.tenant_id == tenant_filter)
+    db_policy = query.first()
     if db_policy:
         raise HTTPException(status_code=400, detail="Policy with this name already exists")
     
     new_policy = models.Policy(
         name=policy.policy_id,
         description=policy.description,
-        config_data=policy.model_dump_json()
+        config_data=policy.model_dump_json(),
+        tenant_id=tenant_filter or current_user.tenant_id,
     )
     db.add(new_policy)
     db.commit()
@@ -75,7 +81,8 @@ def upload_policies(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
     allowed_types = {"application/json", "text/plain", "application/octet-stream"}
     if file.content_type not in allowed_types:
@@ -92,6 +99,8 @@ def upload_policies(
         original_payload = json.loads(raw_bytes.decode("utf-8")) if raw_bytes else {}
     except Exception:
         original_payload = {}
+
+    tenant_id = tenant_filter or current_user.tenant_id
 
     if not result.is_valid:
         AuditLogger().log(
@@ -136,7 +145,12 @@ def upload_policies(
     config_data["input_hash"] = result.input_hash
     config_data["parse_warnings"] = result.warnings
 
-    db_policy = db.query(models.Policy).filter(models.Policy.name == result.policy_id).first()
+    # Scope policy lookup to tenant
+    query = db.query(models.Policy).filter(models.Policy.name == result.policy_id)
+    if tenant_id is not None:
+        query = query.filter(models.Policy.tenant_id == tenant_id)
+    db_policy = query.first()
+
     if db_policy:
         db_policy.description = result.description
         db_policy.config_data = json.dumps(config_data)
@@ -145,6 +159,7 @@ def upload_policies(
             name=result.policy_id,
             description=result.description,
             config_data=json.dumps(config_data),
+            tenant_id=tenant_id,
         )
         db.add(db_policy)
 
@@ -189,9 +204,13 @@ def read_policies(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(get_current_user),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    policies = db.query(models.Policy).offset(skip).limit(limit).all()
+    query = db.query(models.Policy)
+    if tenant_filter is not None:
+        query = query.filter(models.Policy.tenant_id == tenant_filter)
+    policies = query.offset(skip).limit(limit).all()
     for p in policies:
         p.config_data = _safe_config_data(p.config_data)
     return [schemas.PolicyResponse.model_validate(policy).model_dump(mode="json") for policy in policies]
@@ -200,9 +219,13 @@ def read_policies(
 def read_policy(
     policy_id: int,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(get_current_user),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    policy = db.query(models.Policy).filter(models.Policy.id == policy_id).first()
+    query = db.query(models.Policy).filter(models.Policy.id == policy_id)
+    if tenant_filter is not None:
+        query = query.filter(models.Policy.tenant_id == tenant_filter)
+    policy = query.first()
     if policy is None:
         raise HTTPException(status_code=404, detail="Policy not found")
     policy.config_data = _safe_config_data(policy.config_data)
@@ -213,13 +236,22 @@ def assign_policy(
     policy_id: int, 
     device_id: int, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    policy = db.query(models.Policy).filter(models.Policy.id == policy_id).first()
+    # Verify policy belongs to tenant
+    p_query = db.query(models.Policy).filter(models.Policy.id == policy_id)
+    if tenant_filter is not None:
+        p_query = p_query.filter(models.Policy.tenant_id == tenant_filter)
+    policy = p_query.first()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
-        
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    
+    # Verify device belongs to tenant
+    d_query = db.query(models.Device).filter(models.Device.id == device_id)
+    if tenant_filter is not None:
+        d_query = d_query.filter(models.Device.tenant_id == tenant_filter)
+    device = d_query.first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
         
@@ -231,9 +263,13 @@ def assign_policy(
 def unassign_policy(
     device_id: int, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    query = db.query(models.Device).filter(models.Device.id == device_id)
+    if tenant_filter is not None:
+        query = query.filter(models.Device.tenant_id == tenant_filter)
+    device = query.first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
         
@@ -245,14 +281,21 @@ def unassign_policy(
 def delete_policy(
     policy_id: int, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    policy = db.query(models.Policy).filter(models.Policy.id == policy_id).first()
+    query = db.query(models.Policy).filter(models.Policy.id == policy_id)
+    if tenant_filter is not None:
+        query = query.filter(models.Policy.tenant_id == tenant_filter)
+    policy = query.first()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
         
-    # Unset policy_id for all devices using this policy
-    db.query(models.Device).filter(models.Device.policy_id == policy_id).update({"policy_id": None})
+    # Unset policy_id for all devices using this policy (within tenant scope)
+    d_query = db.query(models.Device).filter(models.Device.policy_id == policy_id)
+    if tenant_filter is not None:
+        d_query = d_query.filter(models.Device.tenant_id == tenant_filter)
+    d_query.update({"policy_id": None})
     
     db.delete(policy)
     db.commit()

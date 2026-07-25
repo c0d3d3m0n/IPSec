@@ -100,7 +100,7 @@ class TokenManager:
         record = RefreshToken(
             token_hash=token_hash,
             device_id=payload.get("device_id"),
-            user_id=payload.get("admin_id") or payload.get("user_id"),
+            user_id=payload.get("user_id") or payload.get("admin_id"),
             expires_at=now + timedelta(days=7),
             is_revoked=False,
         )
@@ -146,9 +146,10 @@ class TokenManager:
 
         identity = {
             "sub": payload.get("sub"),
+            "user_id": payload.get("user_id") or payload.get("admin_id"),
+            "role": payload.get("role"),
+            "tenant_id": payload.get("tenant_id"),
             "device_id": payload.get("device_id"),
-            "admin_id": payload.get("admin_id"),
-            "user_id": payload.get("user_id"),
         }
         identity = {k: v for k, v in identity.items() if v is not None}
 

@@ -19,6 +19,8 @@ from sqlalchemy import inspect, text
 from orchestrator.database import engine, Base
 from orchestrator.routers import devices, policies, auth
 from orchestrator.routers.compliance import router as compliance_router
+from orchestrator.routers.admin import router as admin_router
+from orchestrator.routers.users import router as users_router
 from orchestrator.seed_admin import seed_admin as run_seed
 from orchestrator.config import get_settings
 from orchestrator.rate_limiter import limiter
@@ -41,6 +43,8 @@ def _load_module(module_name: str, file_path: Path):
 
 
 _BASE_DIR = Path(__file__).resolve().parent
+_load_module("orchestrator_models_tenant", _BASE_DIR / "models" / "tenant.py")
+_load_module("orchestrator_models_user", _BASE_DIR / "models" / "user.py")
 _load_module("orchestrator_models_compliance", _BASE_DIR / "models" / "compliance.py")
 _load_module("orchestrator_models_audit", _BASE_DIR / "models" / "audit.py")
 _load_module("orchestrator_models_certificate", _BASE_DIR / "models" / "certificate.py")
@@ -174,6 +178,14 @@ def _ensure_auth_schema_compatibility() -> None:
         statements.append("ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0")
     if "locked_until" not in existing_columns:
         statements.append("ALTER TABLE users ADD COLUMN locked_until TIMESTAMP")
+    if "email" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
+    if "role" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN role VARCHAR(50)")
+    if "tenant_id" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
+    if "last_login" not in existing_columns:
+        statements.append("ALTER TABLE users ADD COLUMN last_login TIMESTAMP")
 
     if not statements:
         return
@@ -184,7 +196,7 @@ def _ensure_auth_schema_compatibility() -> None:
 
 
 def _ensure_device_policy_schema_compatibility() -> None:
-    """Add missing columns for enrollment flow to devices and policies tables."""
+    """Add missing columns for enrollment flow and multi-tenancy."""
     inspector = inspect(engine)
     statements: list[str] = []
     
@@ -201,12 +213,34 @@ def _ensure_device_policy_schema_compatibility() -> None:
             statements.append("ALTER TABLE devices ADD COLUMN os_fingerprint VARCHAR")
         if "status" not in device_cols:
             statements.append("ALTER TABLE devices ADD COLUMN status VARCHAR DEFAULT 'PENDING'")
+        if "tenant_id" not in device_cols:
+            statements.append("ALTER TABLE devices ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
     
     # Policy table migrations
     if "policies" in inspector.get_table_names():
         policy_cols = {col["name"] for col in inspector.get_columns("policies")}
         if "config_data" not in policy_cols:
             statements.append("ALTER TABLE policies ADD COLUMN config_data TEXT")
+        if "tenant_id" not in policy_cols:
+            statements.append("ALTER TABLE policies ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
+
+    # Compliance records
+    if "compliance_records" in inspector.get_table_names():
+        comp_cols = {col["name"] for col in inspector.get_columns("compliance_records")}
+        if "tenant_id" not in comp_cols:
+            statements.append("ALTER TABLE compliance_records ADD COLUMN tenant_id INTEGER")
+
+    # Audit logs
+    if "audit_logs" in inspector.get_table_names():
+        audit_cols = {col["name"] for col in inspector.get_columns("audit_logs")}
+        if "tenant_id" not in audit_cols:
+            statements.append("ALTER TABLE audit_logs ADD COLUMN tenant_id INTEGER")
+
+    # Device certificates
+    if "device_certificates" in inspector.get_table_names():
+        cert_cols = {col["name"] for col in inspector.get_columns("device_certificates")}
+        if "tenant_id" not in cert_cols:
+            statements.append("ALTER TABLE device_certificates ADD COLUMN tenant_id INTEGER")
     
     if not statements:
         return
@@ -239,7 +273,7 @@ async def lifespan(app: FastAPI):
     print(f"✅ CORS Allowed Origins: {allowed_origins}")
     
     try:
-        run_seed(settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD)
+        run_seed()
     except Exception as e:
         print(f"Auto-seeding failed: {e}")
     yield
@@ -249,8 +283,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Unified IPsec Orchestrator",
-    description="Central management server for cross-platform IPsec tunnels",
-    version="0.1.0",
+    description="Central management server for cross-platform IPsec tunnels — Multi-Tenant SaaS",
+    version="0.4.0",
     lifespan=lifespan
 )
 
@@ -270,11 +304,10 @@ app.add_middleware(CSRFMiddleware, trusted_origins=csrf_trusted_origins)
 
 # CORS must be the outermost middleware so preflight requests and short-circuit
 # responses still get the access-control headers browsers require.
-# TEMPORARY: Testing with allow_origins=["*"] - NOTE: cannot use with allow_credentials=True
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporarily allow all to test if CORS works at all
-    allow_credentials=False,  # Must be False when using allow_origins=["*"]
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -283,6 +316,8 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
 app.include_router(policies.router, prefix="/api")
 app.include_router(compliance_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
 
 @app.get("/api/ping")
 async def ping():
@@ -290,7 +325,7 @@ async def ping():
 
 @app.get("/")
 async def root():
-    return {"message": "Unified IPsec Orchestrator Running"}
+    return {"message": "Unified IPsec Orchestrator Running — Multi-Tenant SaaS v0.4.0"}
 
 @app.get("/health")
 async def health_check():

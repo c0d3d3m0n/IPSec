@@ -5,8 +5,8 @@ from passlib.context import CryptContext
 import os
 from .config import get_settings
 
-# Password hashing
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+# Password hashing — bcrypt primary, pbkdf2_sha256 as deprecated fallback for auto-upgrade
+pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
 settings = get_settings()
 
 # Load RS512 Keys

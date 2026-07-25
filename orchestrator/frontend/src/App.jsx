@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
+import PlatformAdmin from './pages/PlatformAdmin';
+import UserManagement from './pages/UserManagement';
 import authService from './services/authService';
 
 function App() {
@@ -28,6 +30,22 @@ function App() {
         <Route 
           path="/dashboard"
           element={authenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/admin"
+          element={
+            authenticated && authService.isMasterAdmin() 
+              ? <PlatformAdmin onLogout={handleLogout} /> 
+              : <Navigate to={authenticated ? "/dashboard" : "/login"} />
+          } 
+        />
+        <Route 
+          path="/users"
+          element={
+            authenticated && authService.canWrite() 
+              ? <UserManagement onLogout={handleLogout} /> 
+              : <Navigate to={authenticated ? "/dashboard" : "/login"} />
+          } 
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

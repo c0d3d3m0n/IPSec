@@ -13,20 +13,29 @@ import {
   RefreshCw,
   ShieldAlert,
   Server,
+  Crown,
+  Users,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ENDPOINTS } from '../config/api';
 import authService from '../services/authService';
 import ToastStack from '../components/ToastStack';
 
 const NAV_ITEMS = [
-  { key: 'dashboard', icon: Home, label: 'Dashboard' },
-  { key: 'devices', icon: Monitor, label: 'Devices' },
-  { key: 'policies', icon: ClipboardList, label: 'Policies' },
-  { key: 'compliance', icon: BadgeCheck, label: 'Compliance' },
-  { key: 'settings', icon: Settings, label: 'Settings' },
+  { key: 'dashboard', icon: Home, label: 'Dashboard', roles: ['master_admin', 'tenant_admin', 'tenant_viewer'] },
+  { key: 'devices', icon: Monitor, label: 'Devices', roles: ['master_admin', 'tenant_admin', 'tenant_viewer'] },
+  { key: 'policies', icon: ClipboardList, label: 'Policies', roles: ['master_admin', 'tenant_admin'] },
+  { key: 'compliance', icon: BadgeCheck, label: 'Compliance', roles: ['master_admin', 'tenant_admin', 'tenant_viewer'] },
+  { key: 'settings', icon: Settings, label: 'Settings', roles: ['master_admin', 'tenant_admin'] },
 ];
 
 function Dashboard({ onLogout }) {
+  const navigate = useNavigate();
+  const userRole = authService.getRole() || 'tenant_viewer';
+  const canWrite = authService.canWrite();
+  const tenantName = authService.getTenantName();
+  const username = authService.getUsername() || 'user';
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
@@ -397,6 +406,8 @@ function Dashboard({ onLogout }) {
 
   const getAssignedCount = (policyId) => devices.filter((d) => d.policy_id === policyId).length;
 
+  const filteredNavItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+
   const renderSidebar = () => (
     <aside className={`sidebar glass-surface ${mobileNavOpen ? 'open' : ''}`}>
       <div className="sidebar-brand">
@@ -405,12 +416,12 @@ function Dashboard({ onLogout }) {
         </span>
         <div>
           <h2>IPsec ZT</h2>
-          <small>Zero Trust Console</small>
+          <small>{tenantName || 'Zero Trust Console'}</small>
         </div>
       </div>
 
       <nav className="nav-list">
-        {NAV_ITEMS.map((item) => {
+        {filteredNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -426,6 +437,26 @@ function Dashboard({ onLogout }) {
             </button>
           );
         })}
+
+        {/* Role-based extra nav items */}
+        {userRole === 'master_admin' && (
+          <button
+            className="nav-item"
+            onClick={() => navigate('/admin')}
+          >
+            <Crown size={18} />
+            <span>Platform Admin</span>
+          </button>
+        )}
+        {canWrite && (
+          <button
+            className="nav-item"
+            onClick={() => navigate('/users')}
+          >
+            <Users size={18} />
+            <span>User Management</span>
+          </button>
+        )}
       </nav>
 
       <div className="sidebar-footer">
@@ -433,7 +464,12 @@ function Dashboard({ onLogout }) {
           <span className={`status-dot ${backendOnline ? 'online' : 'offline'}`} />
           <span>{backendOnline ? 'Online' : 'Offline'}</span>
         </div>
-        <div className="sidebar-user">admin</div>
+        <div className="sidebar-user">
+          {username}
+          <small style={{ display: 'block', opacity: 0.6, fontSize: '0.7rem' }}>
+            {userRole.replace('_', ' ')}
+          </small>
+        </div>
         <button className="btn btn-secondary" onClick={onLogout}>
           <LogOut size={16} />
           <span>Logout</span>
@@ -496,23 +532,25 @@ function Dashboard({ onLogout }) {
               <div className="leak-alert">⚠ Plaintext leak detected</div>
             ) : null}
 
-            <div className="device-controls">
-              <select
-                className="input-field"
-                value={device.policy_id || ''}
-                onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
-              >
-                <option value="">Select policy</option>
-                {policies.map((policy) => (
-                  <option key={policy.id} value={policy.id}>
-                    {policy.name}
-                  </option>
-                ))}
-              </select>
-              <button className="btn btn-secondary" onClick={() => handleAssignPolicy(device.id, '')}>
-                Unassign
-              </button>
-            </div>
+            {canWrite && (
+              <div className="device-controls">
+                <select
+                  className="input-field"
+                  value={device.policy_id || ''}
+                  onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
+                >
+                  <option value="">Select policy</option>
+                  {policies.map((policy) => (
+                    <option key={policy.id} value={policy.id}>
+                      {policy.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn btn-secondary" onClick={() => handleAssignPolicy(device.id, '')}>
+                  Unassign
+                </button>
+              </div>
+            )}
           </article>
         );
       })}
@@ -534,9 +572,11 @@ function Dashboard({ onLogout }) {
                 <h3>{policy.name}</h3>
                 <p className="sub-text">{policy.description || 'No description'}</p>
               </div>
-              <button className="btn btn-danger" onClick={() => handleDeletePolicy(policy.id)}>
-                Delete
-              </button>
+              {canWrite && (
+                <button className="btn btn-danger" onClick={() => handleDeletePolicy(policy.id)}>
+                  Delete
+                </button>
+              )}
             </div>
 
             <div className="policy-meta">
@@ -737,14 +777,18 @@ function Dashboard({ onLogout }) {
               <RefreshCw size={16} />
               <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
             </button>
-            <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
-              <Plus size={16} />
-              <span>Pre-register Device</span>
-            </button>
-            <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
-              <Upload size={16} />
-              <span>Upload Policy</span>
-            </button>
+            {canWrite && (
+              <>
+                <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
+                  <Plus size={16} />
+                  <span>Pre-register Device</span>
+                </button>
+                <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+                  <Upload size={16} />
+                  <span>Upload Policy</span>
+                </button>
+              </>
+            )}
           </div>
         </header>
 
@@ -752,7 +796,7 @@ function Dashboard({ onLogout }) {
       </main>
 
       <nav className="mobile-bottom-nav glass-surface">
-        {NAV_ITEMS.map((item) => {
+        {filteredNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <button

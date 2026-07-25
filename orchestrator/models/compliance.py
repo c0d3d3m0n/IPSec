@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from orchestrator.models import Base
+from orchestrator.database import Base
 
 
 class ComplianceRecord(Base):
@@ -18,5 +18,8 @@ class ComplianceRecord(Base):
     active_sa_count = Column(Integer, nullable=False, default=0)
     raw_report = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Multi-tenant
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
 
     device = relationship("Device", back_populates="compliance_records")

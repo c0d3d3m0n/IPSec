@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import json
 import hmac
 import hashlib
@@ -18,7 +18,7 @@ router = APIRouter(
     tags=["devices"]
 )
 
-from ..auth import get_current_active_user, get_current_admin_user
+from ..auth import get_current_user, get_current_admin_user, get_tenant_filter, require_tenant_admin
 
 
 def _load_module(module_name: str, file_path: Path):
@@ -56,6 +56,7 @@ def _safe_serialize_device(device: models.Device) -> dict:
         "last_seen": device.last_seen,
         "policy_id": device.policy_id,
         "policy": None,
+        "tenant_id": device.tenant_id,
         "created_at": device.created_at,
     }
 
@@ -82,6 +83,15 @@ def enroll_device(request: Request, device: schemas.DeviceCreate, db: Session = 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This enrollment has been revoked."
         )
+
+    # Verify tenant is active
+    if db_device.tenant_id:
+        tenant = db.query(models.Tenant).filter(models.Tenant.id == db_device.tenant_id).first()
+        if tenant and not tenant.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tenant is inactive. Contact your administrator."
+            )
 
     pre_shared_key = (db_device.pre_shared_key or db_device.enrollment_token or "").strip()
     expected_signature = hmac.new(
@@ -122,6 +132,7 @@ def enroll_device(request: Request, device: schemas.DeviceCreate, db: Session = 
         cert_pem=cert_pem.decode("utf-8"),
         expires_at=cert_obj.not_valid_after,
         is_active=True,
+        tenant_id=db_device.tenant_id,
     )
     db.add(cert_record)
     db.commit()
@@ -139,18 +150,39 @@ def read_devices(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(get_current_user),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    devices = db.query(models.Device).offset(skip).limit(limit).all()
+    query = db.query(models.Device)
+    if tenant_filter is not None:
+        query = query.filter(models.Device.tenant_id == tenant_filter)
+    devices = query.offset(skip).limit(limit).all()
     return [_safe_serialize_device(device) for device in devices]
 
 @router.post("/register", response_model=schemas.Device)
 def register_device(
     device: schemas.DeviceAdminCreate, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_tenant_admin),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
     """Admin endpoint to pre-register a device."""
+    # Determine tenant_id
+    tenant_id = tenant_filter or current_user.tenant_id
+    
+    # Check device limit
+    if tenant_id:
+        tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+        if tenant:
+            current_count = db.query(models.Device).filter(
+                models.Device.tenant_id == tenant_id,
+            ).count()
+            if current_count >= tenant.max_devices:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=f"Device limit reached ({tenant.max_devices}). Upgrade your plan to add more devices.",
+                )
+
     existing = db.query(models.Device).filter(models.Device.enrollment_number == device.enrollment_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Enrollment number already exists")
@@ -163,7 +195,8 @@ def register_device(
         enrollment_number=device.enrollment_number,
         enrollment_token=device.enrollment_token,
         pre_shared_key=device.pre_shared_key or device.enrollment_token,
-        status="PENDING"
+        status="PENDING",
+        tenant_id=tenant_id,
     )
     db.add(new_device)
     try:
@@ -178,9 +211,13 @@ def register_device(
 def read_device(
     device_id: int, 
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(get_current_user),
+    tenant_filter: Optional[int] = Depends(get_tenant_filter),
 ):
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    query = db.query(models.Device).filter(models.Device.id == device_id)
+    if tenant_filter is not None:
+        query = query.filter(models.Device.tenant_id == tenant_filter)
+    device = query.first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     return _safe_serialize_device(device)
@@ -198,6 +235,12 @@ def get_device_config(
 
     if device.enrollment_token != device_token.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid device token")
+
+    # Check tenant is active
+    if device.tenant_id:
+        tenant = db.query(models.Tenant).filter(models.Tenant.id == device.tenant_id).first()
+        if tenant and not tenant.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is inactive")
 
     # Heartbeat used to write runtime states (NO_POLICY/DEGRADED/ERROR) into
     # device.status; treat those as enrolled and normalize back to ACTIVE.

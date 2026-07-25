@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from orchestrator.models import Base
+from orchestrator.database import Base
 
 
 class DeviceCertificate(Base):
@@ -15,6 +15,9 @@ class DeviceCertificate(Base):
     issued_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
+
+    # Multi-tenant
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
 
     device = relationship("Device", back_populates="certificates")
 

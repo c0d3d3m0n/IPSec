@@ -6,6 +6,7 @@ import importlib.util
 import sys
 from .database import get_db
 from .models import User
+from .models.user import UserRole
 from .security import decode_access_token
 
 
@@ -29,7 +30,9 @@ TokenManager = _token_manager_module.TokenManager
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Extract Bearer token, verify JWT, fetch User from DB, check active."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -45,22 +48,72 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
     if payload is None:
         raise credentials_exception
-        
-    username: str = payload.get("sub")
-    if username is None:
-        raise credentials_exception
-        
-    user = db.query(User).filter(User.username == username).first()
+    
+    # Support both new (user_id in sub) and legacy (username in sub) tokens
+    user_id = payload.get("user_id") or payload.get("admin_id")
+    username = payload.get("sub")
+
+    user = None
+    if user_id:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+    if user is None and username:
+        user = db.query(User).filter(User.username == str(username)).first()
+
     if user is None:
         raise credentials_exception
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive",
+        )
+    
     return user
 
+
 def get_current_active_user(current_user: User = Depends(get_current_user)):
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+    """Alias for backward compatibility — get_current_user already checks is_active."""
     return current_user
 
-def get_current_admin_user(current_user: User = Depends(get_current_active_user)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+def get_tenant_filter(current_user: User = Depends(get_current_user)):
+    """Return tenant_id for filtering queries.
+    
+    - MASTER_ADMIN: returns None (no filter — sees everything)
+    - TENANT_ADMIN / TENANT_VIEWER: returns current_user.tenant_id
+    - Raises 403 if a non-master user has no tenant_id
+    """
+    if current_user.role == UserRole.MASTER_ADMIN:
+        return None
+    
+    if current_user.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not associated with any tenant",
+        )
+    
+    return current_user.tenant_id
+
+
+def require_tenant_admin(current_user: User = Depends(get_current_user)):
+    """Require TENANT_ADMIN or MASTER_ADMIN role."""
+    if current_user.role not in (UserRole.MASTER_ADMIN, UserRole.TENANT_ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions — tenant admin or higher required",
+        )
     return current_user
+
+
+def require_master_admin(current_user: User = Depends(get_current_user)):
+    """Require MASTER_ADMIN role."""
+    if current_user.role != UserRole.MASTER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions — master admin required",
+        )
+    return current_user
+
+
+# Backward compatibility alias
+get_current_admin_user = require_tenant_admin

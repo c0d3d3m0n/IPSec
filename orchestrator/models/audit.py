@@ -1,7 +1,7 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.sql import func
 
-from orchestrator.models import Base
+from orchestrator.database import Base
 
 
 class AuditLog(Base):
@@ -15,3 +15,6 @@ class AuditLog(Base):
     payload_hash = Column(String(128), nullable=False)
     ip_address = Column(String, nullable=True)
     chain_hash = Column(String(128), nullable=False)
+
+    # Multi-tenant (nullable — some audit entries are system-level)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
