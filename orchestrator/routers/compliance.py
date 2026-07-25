@@ -17,30 +17,9 @@ from orchestrator.auth import get_current_user, get_tenant_filter
 router = APIRouter(prefix="/devices", tags=["compliance"])
 
 
-def _load_module(module_name: str, file_path: Path):
-    if module_name in sys.modules:
-        return sys.modules[module_name]
-
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parents[1]
-_compliance_schema_module = _load_module("orchestrator_schemas_compliance", _BASE_DIR / "schemas" / "compliance.py")
-_compliance_model_module = _load_module("orchestrator_models_compliance", _BASE_DIR / "models" / "compliance.py")
-_audit_logger_module = _load_module("orchestrator_security_audit_logger", _BASE_DIR / "security" / "audit_logger.py")
-
-ComplianceReportCreate = _compliance_schema_module.ComplianceReportCreate
-ComplianceReportResponse = _compliance_schema_module.ComplianceReportResponse
-HeartbeatCreate = _compliance_schema_module.HeartbeatCreate
-ComplianceRecord = _compliance_model_module.ComplianceRecord
-AuditLogger = _audit_logger_module.AuditLogger
+from orchestrator.schemas.compliance import ComplianceReportCreate, ComplianceReportResponse, HeartbeatCreate
+from orchestrator.models.compliance import ComplianceRecord
+from orchestrator.security.audit_logger import AuditLogger
 
 
 def _normalize_algo(value: str | None) -> str:

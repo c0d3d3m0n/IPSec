@@ -15,26 +15,9 @@ router = APIRouter(
 from ..auth import get_current_user, get_current_admin_user, get_tenant_filter, require_tenant_admin
 
 
-def _load_module(module_name: str, file_path: Path):
-    if module_name in sys.modules:
-        return sys.modules[module_name]
+from orchestrator.services.policy_parser import PolicyParser
+from orchestrator.security.audit_logger import AuditLogger
 
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parents[1]
-_policy_parser_module = _load_module("orchestrator_services_policy_parser", _BASE_DIR / "services" / "policy_parser.py")
-_audit_logger_module = _load_module("orchestrator_security_audit_logger", _BASE_DIR / "security" / "audit_logger.py")
-
-PolicyParser = _policy_parser_module.PolicyParser
-AuditLogger = _audit_logger_module.AuditLogger
 
 
 def _safe_config_data(raw_value: Any) -> dict:

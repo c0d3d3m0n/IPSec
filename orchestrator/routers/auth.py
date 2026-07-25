@@ -17,25 +17,9 @@ router = APIRouter(
 )
 
 
-def _load_module(module_name: str, file_path: Path):
-    if module_name in sys.modules:
-        return sys.modules[module_name]
+from orchestrator.security.totp_manager import TOTPManager
+from orchestrator.security.token_manager import TokenManager
 
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parents[1]
-_totp_module = _load_module("orchestrator_security_totp_manager", _BASE_DIR / "security" / "totp_manager.py")
-_token_module = _load_module("orchestrator_security_token_manager", _BASE_DIR / "security" / "token_manager.py")
-TOTPManager = _totp_module.TOTPManager
-TokenManager = _token_module.TokenManager
 
 
 @router.post("/login", response_model=schemas.Token)

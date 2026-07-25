@@ -13,29 +13,9 @@ from orchestrator import database, models, schemas, security
 from orchestrator.auth import require_master_admin, get_current_user
 from orchestrator.models.user import UserRole
 
-import importlib.util
-import sys
-from pathlib import Path
+from orchestrator.models.compliance import ComplianceRecord
+from orchestrator.models.audit import AuditLog
 
-
-def _load_module(module_name: str, file_path: Path):
-    if module_name in sys.modules:
-        return sys.modules[module_name]
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load module: {file_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_BASE_DIR = Path(__file__).resolve().parents[1]
-_compliance_model = _load_module("orchestrator_models_compliance", _BASE_DIR / "models" / "compliance.py")
-_audit_model = _load_module("orchestrator_models_audit", _BASE_DIR / "models" / "audit.py")
-
-ComplianceRecord = _compliance_model.ComplianceRecord
-AuditLog = _audit_model.AuditLog
 
 router = APIRouter(
     prefix="/admin",
