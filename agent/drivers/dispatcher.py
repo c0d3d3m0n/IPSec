@@ -51,45 +51,22 @@ class DriverDispatcher:
             return ApplyResult(success=False, os=self.os, message="Driver application failed", detail=str(exc))
 
     def _apply_linux(self, driver_block: dict[str, Any], config: dict[str, Any]) -> ApplyResult:
-        connections = config.get("connections") or []
-        ike_enc = config.get("ike_encryption")
-        ike_int = config.get("ike_integrity")
-        ike_dh = config.get("ike_dh_group")
-        esp_enc = config.get("esp_encryption")
-        esp_int = config.get("esp_integrity")
-        esp_dh = config.get("esp_dh_group")
-
-        logger.info(f"Linux IPSec policy application started: {len(connections)} connection(s)")
-        logger.info(f"IKE crypto: {ike_enc}/{ike_int}/{ike_dh}")
-        logger.info(f"ESP crypto: {esp_enc}/{esp_int}/{esp_dh}")
-
         try:
-            logger.info("[Linux driver] Step 1/4: Rendering swanctl.conf...")
             conf_text = self._render_swanctl_conf(driver_block)
-            logger.info("[Linux driver] Step 1/4 OK")
-
-            logger.info("[Linux driver] Step 2/4: Writing configuration to /etc/swanctl/swanctl.conf...")
             conf_path = Path("/etc/swanctl/swanctl.conf")
             conf_path.parent.mkdir(parents=True, exist_ok=True)
             conf_path.write_text(conf_text, encoding="utf-8")
-            logger.info("[Linux driver] Step 2/4 OK")
 
-            logger.info("[Linux driver] Step 3/4: Loading swanctl configuration via 'swanctl --load-all'...")
             load_result = subprocess.run(["swanctl", "--load-all", "--noprompt"], capture_output=True, text=True, check=False)
             if load_result.returncode != 0:
-                detail = (load_result.stderr or load_result.stdout or "").strip()
-                logger.error("[Linux driver] Step 3/4 FAILED: %s", detail)
-                return ApplyResult(success=False, os=self.os, message="Failed to load swanctl configuration", detail=detail)
-            logger.info("[Linux driver] Step 3/4 OK")
+                return ApplyResult(success=False, os=self.os, message="Failed to load swanctl configuration", detail=(load_result.stderr or load_result.stdout or ""))
 
-            logger.info("[Linux driver] Step 4/4: Initiating connection child tunnels...")
-            connections_block = driver_block.get("connections") or {}
+            connections = driver_block.get("connections") or {}
             initiated = 0
-            for connection_name, connection in connections_block.items():
+            for connection_name, connection in connections.items():
                 child_name = f"{connection_name}-child"
                 start_action = ((connection.get("children") or {}).get(child_name) or {}).get("start_action")
                 if start_action == "start":
-                    logger.info(f"[Linux driver] Initiating child tunnel '{child_name}' in background...")
                     try:
                         # Spawn the initiation in the background to prevent blocking, independent of strongSwan CLI version
                         subprocess.Popen(
@@ -97,14 +74,11 @@ class DriverDispatcher:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL
                         )
-                        logger.info(f"[Linux driver] Initiated child tunnel '{child_name}' OK")
                     except Exception as p_exc:
                         logger.warning(f"Failed to spawn background initiation for {child_name}: {p_exc}")
                     initiated += 1
 
-            logger.info("[Linux driver] Step 4/4 OK")
-            logger.info("Applied Linux tunnel policy: %d connections loaded, %d initiated", len(connections_block), initiated)
-            return ApplyResult(success=True, os=self.os, message=f"{len(connections_block)} connections loaded")
+            return ApplyResult(success=True, os=self.os, message=f"{len(connections)} connections loaded")
         except Exception as exc:
             logger.exception("Linux driver application error")
             return ApplyResult(success=False, os=self.os, message="Linux driver application failed", detail=str(exc))
