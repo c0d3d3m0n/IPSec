@@ -445,10 +445,12 @@ select.input-field option {
 .card-grid {
   display: grid;
   gap: 14px;
+  align-items: start;
 }
 
 .card-grid.two-col {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .entity-card {
@@ -457,6 +459,84 @@ select.input-field option {
   flex-direction: column;
   gap: 14px;
   border: 1px solid var(--glass-border);
+  position: relative;
+  overflow: visible !important;
+}
+
+.entity-card.dropdown-active {
+  z-index: 40 !important;
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.device-dropdown-container {
+  position: relative;
+  width: 100%;
+  margin-top: auto;
+}
+
+.device-expanded-compliance-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -2px;
+  right: -2px;
+  z-index: 60;
+  background: rgba(9, 15, 11, 0.98);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 20px rgba(16, 185, 129, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mini-compliance-record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid transparent;
+}
+
+.mini-compliance-record.compliant {
+  border-left-color: var(--accent-success);
+}
+
+.mini-compliance-record.violation {
+  border-left-color: var(--accent-danger);
+}
+
+.expand-toggle {
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.expand-toggle:hover,
+.expand-toggle.active {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
 }
 
 .card-head {

@@ -242,16 +242,40 @@ function Dashboard({ onLogout }) {
   }, []);
 
   const formatRelativeTime = (input) => {
-    if (!input) {
-      return 'Never';
+    if (!input) return 'Never';
+    try {
+      let date;
+      if (input instanceof Date) {
+        date = input;
+      } else if (typeof input === 'number') {
+        date = new Date(input);
+      } else {
+        const str = String(input).trim();
+        if (str.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(str)) {
+          date = new Date(str);
+        } else if (str.includes('T')) {
+          date = new Date(`${str}Z`);
+        } else {
+          date = new Date(str.replace(' ', 'T') + 'Z');
+        }
+      }
+      const ms = date.getTime();
+      if (isNaN(ms)) {
+        const raw = new Date(input);
+        if (!isNaN(raw.getTime())) {
+          date = raw;
+        } else {
+          return 'Recent';
+        }
+      }
+      const deltaSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (deltaSeconds < 60) return `${deltaSeconds}s ago`;
+      if (deltaSeconds < 3600) return `${Math.floor(deltaSeconds / 60)}m ago`;
+      if (deltaSeconds < 86400) return `${Math.floor(deltaSeconds / 3600)}h ago`;
+      return `${Math.floor(deltaSeconds / 86400)}d ago`;
+    } catch {
+      return 'Recent';
     }
-    const timestamp = new Date(input.endsWith('Z') ? input : `${input}Z`);
-    const deltaSeconds = Math.max(0, Math.floor((Date.now() - timestamp.getTime()) / 1000));
-
-    if (deltaSeconds < 60) return `${deltaSeconds}s ago`;
-    if (deltaSeconds < 3600) return `${Math.floor(deltaSeconds / 60)} min ago`;
-    if (deltaSeconds < 86400) return `${Math.floor(deltaSeconds / 3600)} h ago`;
-    return `${Math.floor(deltaSeconds / 86400)} d ago`;
   };
 
   const formatBytes = (value) => {
@@ -614,7 +638,12 @@ function Dashboard({ onLogout }) {
           const last3Records = deviceRecords.slice(0, 3);
 
           return (
-            <motion.article key={device.id} className="entity-card glass-surface interactive-card" variants={staggerChild}>
+            <motion.article
+              key={device.id}
+              className={`entity-card glass-surface interactive-card ${isExpanded ? 'dropdown-active' : ''}`}
+              style={{ zIndex: isExpanded ? 40 : 1 }}
+              variants={staggerChild}
+            >
               <div className="card-head">
                 <div>
                   <h3>{device.hostname || device.enrollment_number || `Device ${device.id}`}</h3>
@@ -682,42 +711,72 @@ function Dashboard({ onLogout }) {
                 </button>
               </div>
 
-              {/* Expand toggle for inline compliance preview */}
+              {/* Floating dropdown for inline compliance preview */}
               {deviceRecords.length > 0 && (
-                <button
-                  className="expand-toggle"
-                  onClick={() => toggleDeviceExpanded(device.id)}
-                >
-                  {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  {isExpanded ? ' Hide history' : ` Last ${last3Records.length} records`}
-                </button>
-              )}
-
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    className="device-expanded-compliance"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                    style={{ overflow: 'hidden' }}
+                <div className="device-dropdown-container" style={{ position: 'relative', marginTop: 'auto' }}>
+                  <button
+                    type="button"
+                    className={`expand-toggle ${isExpanded ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleDeviceExpanded(device.id);
+                    }}
+                    style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    {last3Records.map((rec, idx) => (
-                      <div
-                        key={`${rec.timestamp}-${idx}`}
-                        className={`mini-compliance-record ${rec.is_compliant ? 'compliant' : 'violation'}`}
+                    {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    {isExpanded ? ' Hide history' : ` Last ${last3Records.length} records`}
+                  </button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        className="device-expanded-compliance-dropdown"
+                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="mono-text">{formatRelativeTime(rec.timestamp)}</span>
-                        <span>{formatBytes(rec.total_bytes_encrypted)} encrypted</span>
-                        <span className={`chip compliance-${rec.is_compliant ? 'success' : 'danger'}`}>
-                          {rec.is_compliant ? '✓' : '✗'}
-                        </span>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span className="mono-text" style={{ color: 'var(--accent-primary)', fontSize: '0.74rem', fontWeight: 600, letterSpacing: '0.04em' }}>
+                            RECENT ATTESTATIONS ({last3Records.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleDeviceExpanded(device.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.85rem',
+                              lineHeight: 1,
+                            }}
+                            aria-label="Close"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {last3Records.map((rec, idx) => (
+                          <div
+                            key={`${rec.timestamp}-${idx}`}
+                            className={`mini-compliance-record ${rec.is_compliant ? 'compliant' : 'violation'}`}
+                          >
+                            <span className="mono-text">{formatRelativeTime(rec.timestamp)}</span>
+                            <span>{formatBytes(rec.total_bytes_encrypted)} encrypted</span>
+                            <span className={`chip compliance-${rec.is_compliant ? 'success' : 'danger'}`}>
+                              {rec.is_compliant ? '✓' : '✗'}
+                            </span>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </motion.article>
           );
         })}
