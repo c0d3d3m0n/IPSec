@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Lock, User } from 'lucide-react';
 import authService from '../services/authService';
 import ToastStack from '../components/ToastStack';
@@ -67,21 +68,41 @@ function Login({ onLogin }) {
 
   return (
     <div className="login-page">
-      <div className="orb orb-purple" />
+      {/* Animated gradient orbs */}
       <div className="orb orb-teal" />
+      <div className="orb orb-purple" />
 
-      <div className="login-card glass-surface">
+      <motion.div
+        className="login-card glass-surface"
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {/* Logo badge with pulse glow */}
         <div className="login-logo-wrap">
-          <div className="login-logo-badge glass-surface">
+          <motion.div
+            className="login-logo-badge glass-surface"
+            animate={{ boxShadow: [
+              '0 0 12px rgba(0, 255, 102, 0.35)',
+              '0 0 28px rgba(0, 255, 102, 0.7)',
+              '0 0 12px rgba(0, 255, 102, 0.35)',
+            ]}}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          >
             <ShieldCheck size={28} />
-          </div>
+          </motion.div>
         </div>
 
-        <h1 className="login-title">IPsec Orchestrator</h1>
+        <h1 className="login-title">IPsec Vault</h1>
         <p className="login-subtitle">Zero Trust Policy Management</p>
 
         <form onSubmit={handleSubmit} className="login-form">
-          <label className="field-wrap">
+          <motion.label
+            className="field-wrap"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 }}
+          >
             <span className="field-icon"><User size={16} /></span>
             <input
               className="input-field"
@@ -90,10 +111,16 @@ function Login({ onLogin }) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="username"
             />
-          </label>
+          </motion.label>
 
-          <label className="field-wrap">
+          <motion.label
+            className="field-wrap"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.25 }}
+          >
             <span className="field-icon"><Lock size={16} /></span>
             <input
               className="input-field"
@@ -102,32 +129,64 @@ function Login({ onLogin }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
             />
-          </label>
+          </motion.label>
 
-          <div className={`totp-collapse ${showTotp ? 'open' : ''}`}>
-            <label className="field-wrap">
-              <span className="field-icon"><ShieldCheck size={16} /></span>
-              <input
-                className="input-field"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="TOTP Code"
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
-              />
-            </label>
-          </div>
+          {/* TOTP field — animated slide-down */}
+          <AnimatePresence>
+            {showTotp && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <label className="field-wrap">
+                  <span className="field-icon"><ShieldCheck size={16} /></span>
+                  <input
+                    className="input-field"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="TOTP Code"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    autoComplete="one-time-code"
+                  />
+                </label>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {error ? <div className="error-panel glass-surface">{error}</div> : null}
+          {/* Error message */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                className="error-panel glass-surface"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                {error}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
+          <motion.button
+            className="btn btn-primary login-btn"
+            type="submit"
+            disabled={loading}
+            whileHover={{ scale: loading ? 1 : 1.02 }}
+            whileTap={{ scale: loading ? 1 : 0.98 }}
+          >
             {loading ? <span className="spinner" /> : null}
             <span>{submitLabel}</span>
-          </button>
+          </motion.button>
         </form>
-      </div>
+      </motion.div>
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>

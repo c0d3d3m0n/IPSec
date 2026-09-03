@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
   Home,
@@ -13,10 +14,22 @@ import {
   RefreshCw,
   ShieldAlert,
   Server,
+  Shield,
+  Activity,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  FileJson,
+  Copy,
 } from 'lucide-react';
 import { ENDPOINTS } from '../config/api';
 import authService from '../services/authService';
 import ToastStack from '../components/ToastStack';
+import AnimatedCounter from '../components/AnimatedCounter';
+import TrustScoreBar from '../components/TrustScoreBar';
+import StatusDot from '../components/StatusDot';
+import SkeletonLoader from '../components/SkeletonLoader';
+import HashDisplay from '../components/HashDisplay';
 
 const NAV_ITEMS = [
   { key: 'dashboard', icon: Home, label: 'Dashboard' },
@@ -25,6 +38,40 @@ const NAV_ITEMS = [
   { key: 'compliance', icon: BadgeCheck, label: 'Compliance' },
   { key: 'settings', icon: Settings, label: 'Settings' },
 ];
+
+/* Per-card summary icons for visual differentiation */
+const SUMMARY_ICONS = [Server, Activity, Shield, ClipboardList, AlertTriangle];
+
+/* ── Framer Motion presets ── */
+const fadeUp = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+  transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+};
+
+const staggerContainer = {
+  animate: { transition: { staggerChildren: 0.06 } },
+};
+
+const staggerChild = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+};
+
+const modalOverlayVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+};
+
+const modalCardVariants = {
+  initial: { opacity: 0, y: 24, scale: 0.96 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: 24, scale: 0.96 },
+  transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+};
 
 function Dashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -47,6 +94,12 @@ function Dashboard({ onLogout }) {
   const [totpCodeInput, setTotpCodeInput] = useState('');
   const [totpLoading, setTotpLoading] = useState(false);
   const [totpVerifying, setTotpVerifying] = useState(false);
+
+  /* Expandable device cards — track which device IDs are expanded */
+  const [expandedDevices, setExpandedDevices] = useState({});
+
+  /* Drag-and-drop state for policy upload */
+  const [dragActive, setDragActive] = useState(false);
 
   const [enrollForm, setEnrollForm] = useState({
     enrollment_number: '',
@@ -224,6 +277,21 @@ function Dashboard({ onLogout }) {
     return { label: 'Violations', tone: 'danger', leakDetected };
   };
 
+  /**
+   * Derive a synthetic trust score from compliance history.
+   * 100 if all records compliant, minus 10 per violation, minus 30 for leaks.
+   */
+  const getDeviceTrustScore = (deviceId) => {
+    const records = complianceByDevice[deviceId] || [];
+    if (records.length === 0) return 50; // Neutral when no data
+    let score = 100;
+    records.forEach((r) => {
+      if (!r.is_compliant) score -= 10;
+      if (r.plaintext_leak_detected) score -= 30;
+    });
+    return Math.max(0, Math.min(100, score));
+  };
+
   const summary = useMemo(() => {
     const total = devices.length;
     const active = devices.filter((d) => d.is_active).length;
@@ -340,6 +408,31 @@ function Dashboard({ onLogout }) {
     }
   };
 
+  /* Drag-and-drop handlers for policy upload */
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+      setUploadFile(file);
+    } else {
+      addToast('warning', 'Please drop a JSON file');
+    }
+  };
+
   const normalizeQrImageSrc = (base64OrDataUrl) => {
     if (!base64OrDataUrl) {
       return '';
@@ -397,6 +490,14 @@ function Dashboard({ onLogout }) {
 
   const getAssignedCount = (policyId) => devices.filter((d) => d.policy_id === policyId).length;
 
+  const toggleDeviceExpanded = (deviceId) => {
+    setExpandedDevices((prev) => ({ ...prev, [deviceId]: !prev[deviceId] }));
+  };
+
+  /* ═══════════════════════════════════════════
+     Render helpers
+     ═══════════════════════════════════════════ */
+
   const renderSidebar = () => (
     <aside className={`sidebar glass-surface ${mobileNavOpen ? 'open' : ''}`}>
       <div className="sidebar-brand">
@@ -404,7 +505,7 @@ function Dashboard({ onLogout }) {
           🔐
         </span>
         <div>
-          <h2>IPsec ZT</h2>
+          <h2>IPsec Vault</h2>
           <small>Zero Trust Console</small>
         </div>
       </div>
@@ -413,17 +514,20 @@ function Dashboard({ onLogout }) {
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           return (
-            <button
+            <motion.button
               key={item.key}
               className={`nav-item ${activeTab === item.key ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab(item.key);
                 setMobileNavOpen(false);
               }}
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              layout
             >
               <Icon size={18} />
               <span>{item.label}</span>
-            </button>
+            </motion.button>
           );
         })}
       </nav>
@@ -443,126 +547,246 @@ function Dashboard({ onLogout }) {
   );
 
   const renderSummaryCards = () => {
+    if (loading && devices.length === 0) {
+      return <SkeletonLoader variant="stat" count={5} />;
+    }
+
     const cards = [
-      { label: 'Total Devices', value: summary.total, tone: 'primary' },
-      { label: 'Active Devices', value: summary.active, tone: 'success' },
-      { label: 'Compliant Devices', value: summary.compliant, tone: 'success' },
-      { label: 'Policies', value: summary.policies, tone: 'primary' },
+      { label: 'Total Devices', value: summary.total, tone: 'primary', Icon: Server },
+      { label: 'Active Devices', value: summary.active, tone: 'success', Icon: Activity },
+      { label: 'Compliant Devices', value: summary.compliant, tone: 'success', Icon: Shield },
+      { label: 'Policies', value: summary.policies, tone: 'primary', Icon: ClipboardList },
       {
         label: 'Violations (24h)',
         value: summary.violations24h,
         tone: summary.violations24h > 0 ? 'danger' : 'neutral',
+        Icon: AlertTriangle,
       },
     ];
 
     return (
-      <div className="summary-grid">
-        {cards.map((card) => (
-          <article key={card.label} className={`summary-card glass-surface tone-${card.tone}`}>
-            <div className="summary-icon"><Server size={22} /></div>
-            <div className="summary-value">{card.value}</div>
-            <div className="summary-label">{card.label}</div>
-          </article>
-        ))}
-      </div>
+      <motion.div className="summary-grid" variants={staggerContainer} initial="initial" animate="animate">
+        {cards.map((card) => {
+          const CardIcon = card.Icon;
+          return (
+            <motion.article
+              key={card.label}
+              className={`summary-card glass-surface tone-${card.tone}`}
+              variants={staggerChild}
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
+            >
+              <div className="summary-icon"><CardIcon size={22} /></div>
+              <div className="summary-value">
+                <AnimatedCounter value={card.value} duration={1.0} />
+              </div>
+              <div className="summary-label">{card.label}</div>
+            </motion.article>
+          );
+        })}
+      </motion.div>
     );
   };
 
-  const renderDevices = () => (
-    <section className="card-grid two-col">
-      {devices.map((device) => {
-        const compliance = getDeviceComplianceInfo(device.id);
+  const renderDevices = () => {
+    if (loading && devices.length === 0) {
+      return <SkeletonLoader variant="card" count={4} />;
+    }
 
-        return (
-          <article key={device.id} className="entity-card glass-surface interactive-card">
-            <div className="card-head">
-              <div>
-                <h3>{device.hostname || device.enrollment_number || `Device ${device.id}`}</h3>
-                <div className="mono-text">last_seen: {formatRelativeTime(device.last_seen)}</div>
+    if (devices.length === 0) {
+      return (
+        <div className="empty-state-action glass-surface">
+          <div className="empty-icon">💻</div>
+          <div className="empty-msg">No devices enrolled yet.</div>
+          <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
+            <Plus size={16} /> Pre-register Device
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <motion.section className="card-grid two-col" variants={staggerContainer} initial="initial" animate="animate">
+        {devices.map((device) => {
+          const compliance = getDeviceComplianceInfo(device.id);
+          const trustScore = getDeviceTrustScore(device.id);
+          const isExpanded = expandedDevices[device.id];
+          const deviceRecords = complianceByDevice[device.id] || [];
+          const last3Records = deviceRecords.slice(0, 3);
+
+          return (
+            <motion.article key={device.id} className="entity-card glass-surface interactive-card" variants={staggerChild}>
+              <div className="card-head">
+                <div>
+                  <h3>{device.hostname || device.enrollment_number || `Device ${device.id}`}</h3>
+                  <div className="mono-text">last_seen: {formatRelativeTime(device.last_seen)}</div>
+                </div>
+                <span className={`chip os-${(device.os_type || 'unknown').toLowerCase()}`}>{device.os_type || 'unknown'}</span>
               </div>
-              <span className={`chip os-${(device.os_type || 'unknown').toLowerCase()}`}>{device.os_type || 'unknown'}</span>
-            </div>
 
-            <div className="device-meta">
-              <div><strong>Status:</strong> {device.status || 'unknown'}</div>
-              <div><strong>Active:</strong> {device.is_active ? 'Yes' : 'No'}</div>
-              <div>
-                <strong>Compliance:</strong>
-                <span className={`chip compliance-${compliance.tone}`}>{compliance.label}</span>
+              <div className="device-meta">
+                <div className="device-status-row">
+                  <strong>Status:</strong>
+                  <StatusDot
+                    status={device.is_active ? 'online' : 'inactive'}
+                    label={device.is_active ? 'Active' : 'Inactive'}
+                  />
+                </div>
+                <div>
+                  <strong>Compliance:</strong>{' '}
+                  <motion.span
+                    className={`chip compliance-${compliance.tone}`}
+                    key={compliance.label}
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {compliance.label}
+                  </motion.span>
+                </div>
               </div>
-            </div>
 
-            {compliance.leakDetected ? (
-              <div className="leak-alert">⚠ Plaintext leak detected</div>
-            ) : null}
+              {/* Trust Score Bar */}
+              <TrustScoreBar score={trustScore} />
 
-            <div className="device-controls">
-              <select
-                className="input-field"
-                value={device.policy_id || ''}
-                onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
-              >
-                <option value="">Select policy</option>
-                {policies.map((policy) => (
-                  <option key={policy.id} value={policy.id}>
-                    {policy.name}
-                  </option>
-                ))}
-              </select>
-              <button className="btn btn-secondary" onClick={() => handleAssignPolicy(device.id, '')}>
-                Unassign
-              </button>
-            </div>
-          </article>
-        );
-      })}
-    </section>
-  );
+              {compliance.leakDetected ? (
+                <motion.div
+                  className="leak-alert"
+                  animate={{
+                    boxShadow: [
+                      '0 0 0px rgba(255,68,102,0)',
+                      '0 0 16px rgba(255,68,102,0.4)',
+                      '0 0 0px rgba(255,68,102,0)',
+                    ],
+                  }}
+                  transition={{ duration: 1.8, repeat: Infinity }}
+                >
+                  <ShieldAlert size={16} /> Plaintext leak detected
+                </motion.div>
+              ) : null}
 
-  const renderPolicies = () => (
-    <section className="card-grid two-col">
-      {policies.map((policy) => {
-        const targetOS = policy?.config_data?.target?.os || [];
-        const crypto = policy?.config_data?.ipsec_policy?.crypto || {};
-        const ike = crypto.ike || {};
-        const esp = crypto.esp || {};
-
-        return (
-          <article key={policy.id} className="entity-card glass-surface interactive-card">
-            <div className="card-head">
-              <div>
-                <h3>{policy.name}</h3>
-                <p className="sub-text">{policy.description || 'No description'}</p>
+              <div className="device-controls">
+                <select
+                  className="input-field"
+                  value={device.policy_id || ''}
+                  onChange={(e) => handleAssignPolicy(device.id, e.target.value)}
+                >
+                  <option value="">Select policy</option>
+                  {policies.map((policy) => (
+                    <option key={policy.id} value={policy.id}>
+                      {policy.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn btn-danger" onClick={() => handleAssignPolicy(device.id, '')}>
+                  Unassign
+                </button>
               </div>
-              <button className="btn btn-danger" onClick={() => handleDeletePolicy(policy.id)}>
-                Delete
-              </button>
-            </div>
 
-            <div className="policy-meta">
-              <div><strong>Version:</strong> {policy?.config_data?.version || 'N/A'}</div>
-              <div><strong>Created:</strong> {new Date(policy.created_at).toLocaleString()}</div>
-              <div><strong>Assigned Devices:</strong> {getAssignedCount(policy.id)}</div>
-            </div>
+              {/* Expand toggle for inline compliance preview */}
+              {deviceRecords.length > 0 && (
+                <button
+                  className="expand-toggle"
+                  onClick={() => toggleDeviceExpanded(device.id)}
+                >
+                  {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  {isExpanded ? ' Hide history' : ` Last ${last3Records.length} records`}
+                </button>
+              )}
 
-            <div className="chip-row">
-              {targetOS.length ? targetOS.map((os) => (
-                <span key={`${policy.id}-${os}`} className={`chip os-${String(os).toLowerCase()}`}>{os}</span>
-              )) : <span className="chip os-unknown">No target OS</span>}
-            </div>
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    className="device-expanded-compliance"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    {last3Records.map((rec, idx) => (
+                      <div
+                        key={`${rec.timestamp}-${idx}`}
+                        className={`mini-compliance-record ${rec.is_compliant ? 'compliant' : 'violation'}`}
+                      >
+                        <span className="mono-text">{formatRelativeTime(rec.timestamp)}</span>
+                        <span>{formatBytes(rec.total_bytes_encrypted)} encrypted</span>
+                        <span className={`chip compliance-${rec.is_compliant ? 'success' : 'danger'}`}>
+                          {rec.is_compliant ? '✓' : '✗'}
+                        </span>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.article>
+          );
+        })}
+      </motion.section>
+    );
+  };
 
-            <div className="algo-block mono-text">IKE: {ike.encryption || 'N/A'} / {ike.integrity || 'N/A'} / {ike.dh_group || 'N/A'}</div>
-            <div className="algo-block mono-text">ESP: {esp.encryption || 'N/A'} / {esp.integrity || 'N/A'} / {esp.dh_group || 'N/A'}</div>
-          </article>
-        );
-      })}
-    </section>
-  );
+  const renderPolicies = () => {
+    if (loading && policies.length === 0) {
+      return <SkeletonLoader variant="card" count={4} />;
+    }
+
+    if (policies.length === 0) {
+      return (
+        <div className="empty-state-action glass-surface">
+          <div className="empty-icon">📋</div>
+          <div className="empty-msg">No policies uploaded yet.</div>
+          <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+            <Upload size={16} /> Upload Policy
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <motion.section className="card-grid two-col" variants={staggerContainer} initial="initial" animate="animate">
+        {policies.map((policy) => {
+          const targetOS = policy?.config_data?.target?.os || [];
+          const crypto = policy?.config_data?.ipsec_policy?.crypto || {};
+          const ike = crypto.ike || {};
+          const esp = crypto.esp || {};
+
+          return (
+            <motion.article key={policy.id} className="entity-card glass-surface interactive-card" variants={staggerChild}>
+              <div className="card-head">
+                <div>
+                  <h3>{policy.name}</h3>
+                  <p className="sub-text">{policy.description || 'No description'}</p>
+                </div>
+                <button className="btn btn-danger" onClick={() => handleDeletePolicy(policy.id)}>
+                  Delete
+                </button>
+              </div>
+
+              <div className="policy-meta">
+                <div><strong>Version:</strong> <span className="chip os-unknown">{policy?.config_data?.version || 'N/A'}</span></div>
+                <div><strong>Created:</strong> {new Date(policy.created_at).toLocaleString()}</div>
+                <div><strong>Assigned Devices:</strong> <span className="sa-badge">{getAssignedCount(policy.id)}</span></div>
+              </div>
+
+              <div className="chip-row">
+                {targetOS.length ? targetOS.map((os) => (
+                  <span key={`${policy.id}-${os}`} className={`chip os-${String(os).toLowerCase()}`}>{os}</span>
+                )) : <span className="chip os-unknown">No target OS</span>}
+              </div>
+
+              <div className="algo-block mono-text">IKE: {ike.encryption || 'N/A'} / {ike.integrity || 'N/A'} / {ike.dh_group || 'N/A'}</div>
+              <div className="algo-block mono-text">ESP: {esp.encryption || 'N/A'} / {esp.integrity || 'N/A'} / {esp.dh_group || 'N/A'}</div>
+            </motion.article>
+          );
+        })}
+      </motion.section>
+    );
+  };
 
   const selectedTimeline = complianceByDevice[selectedComplianceDevice] || [];
 
   const renderComplianceTimeline = () => (
-    <section className="glass-surface timeline-wrap">
+    <motion.section className="glass-surface timeline-wrap" {...fadeUp}>
       <div className="timeline-head">
         <h3>Compliance Timeline</h3>
         <select
@@ -579,37 +803,65 @@ function Dashboard({ onLogout }) {
         </select>
       </div>
 
-      <div className="timeline-list">
-        {selectedTimeline.map((record, index) => {
-          const violations = record?.raw_report?.violations || [];
-          return (
-            <article key={`${record.timestamp}-${index}`} className={`timeline-item ${record.is_compliant ? 'ok' : 'bad'}`}>
-              <div className="timeline-top">
-                <span className="mono-text">{new Date(record.timestamp).toLocaleString()}</span>
-                <span className={`chip compliance-${record.is_compliant ? 'success' : 'danger'}`}>
-                  {record.is_compliant ? 'Compliant' : 'Violation'}
-                </span>
-              </div>
-              <div className="timeline-metrics">
-                <span>Total encrypted: {formatBytes(record.total_bytes_encrypted)}</span>
-                <span>Active SAs: {record.active_sa_count ?? (record.active_sas?.length || 0)}</span>
-              </div>
-              {violations.length > 0 ? (
-                <ul className="violations-list">
-                  {violations.map((violation, vIndex) => (
-                    <li key={`${record.timestamp}-${vIndex}`}>{String(violation)}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </article>
-          );
-        })}
+      {loading && selectedTimeline.length === 0 ? (
+        <SkeletonLoader variant="timeline" count={4} />
+      ) : (
+        <div className="timeline-list">
+          {selectedTimeline.map((record, index) => {
+            const violations = record?.raw_report?.violations || [];
+            const chainHash = record?.chain_hash || record?.raw_report?.chain_hash;
+            const activeSaCount = record.active_sa_count ?? (record.active_sas?.length || 0);
 
-        {selectedTimeline.length === 0 ? (
-          <div className="empty-state">No compliance records found for this device.</div>
-        ) : null}
-      </div>
-    </section>
+            return (
+              <motion.article
+                key={`${record.timestamp}-${index}`}
+                className={`timeline-item ${record.is_compliant ? 'ok' : 'bad'}`}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05, duration: 0.3 }}
+              >
+                <div className="timeline-top">
+                  <span className="mono-text">{new Date(record.timestamp).toLocaleString()}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="sa-badge">{activeSaCount} SA{activeSaCount !== 1 ? 's' : ''}</span>
+                    <motion.span
+                      className={`chip compliance-${record.is_compliant ? 'success' : 'danger'}`}
+                      initial={{ scale: 0.8 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {record.is_compliant ? 'Compliant' : 'Violation'}
+                    </motion.span>
+                  </div>
+                </div>
+                <div className="timeline-metrics">
+                  <span>{formatBytes(record.total_bytes_encrypted)} encrypted</span>
+                  {chainHash && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      Chain: <HashDisplay hash={chainHash} truncateAt={16} />
+                    </span>
+                  )}
+                </div>
+                {violations.length > 0 ? (
+                  <ul className="violations-list">
+                    {violations.map((violation, vIndex) => (
+                      <li key={`${record.timestamp}-${vIndex}`}>{String(violation)}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </motion.article>
+            );
+          })}
+
+          {selectedTimeline.length === 0 ? (
+            <div className="empty-state-action">
+              <div className="empty-icon">📊</div>
+              <div className="empty-msg">No compliance records found for this device.</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </motion.section>
   );
 
   const renderContent = () => {
@@ -618,7 +870,7 @@ function Dashboard({ onLogout }) {
     if (activeTab === 'compliance') return renderComplianceTimeline();
     if (activeTab === 'settings') {
       return (
-        <section className="glass-surface settings-card">
+        <motion.section className="glass-surface settings-card" {...fadeUp}>
           <h3>Settings</h3>
           <p className="sub-text">Backend: {backendOnline ? 'Online' : 'Offline'}</p>
           <p className="sub-text">Theme: Glassmorphism enabled</p>
@@ -666,7 +918,7 @@ function Dashboard({ onLogout }) {
               </div>
             ) : null}
           </div>
-        </section>
+        </motion.section>
       );
     }
 
@@ -695,7 +947,9 @@ function Dashboard({ onLogout }) {
           <div className="summary-table">
             {Object.entries(osSummary).map(([os, summaryInfo]) => (
               <div key={os} className="summary-row">
-                <strong>{os}</strong>
+                <strong>
+                  <span className={`chip os-${String(os).toLowerCase()}`}>{os}</span>
+                </strong>
                 <span className="mono-text">{JSON.stringify(summaryInfo)}</span>
               </div>
             ))}
@@ -719,12 +973,41 @@ function Dashboard({ onLogout }) {
     );
   };
 
+  /* ═══════════════════════════════════════════
+     Modal wrapper (shared)
+     ═══════════════════════════════════════════ */
+  const ModalWrap = ({ show, onClose, children }) => (
+    <AnimatePresence>
+      {show ? (
+        <motion.div
+          className="modal-overlay"
+          variants={modalOverlayVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+          <motion.div
+            className="modal glass-surface"
+            variants={modalCardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={modalCardVariants.transition}
+          >
+            {children}
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+
   return (
     <div className="app-shell">
       {renderSidebar()}
 
       <main className="main-content">
-        <header className="top-bar glass-surface">
+        <motion.header className="top-bar glass-surface" {...fadeUp}>
           <div className="top-left">
             <button className="icon-btn mobile-menu-btn" onClick={() => setMobileNavOpen((prev) => !prev)}>
               <Menu size={20} />
@@ -733,22 +1016,46 @@ function Dashboard({ onLogout }) {
           </div>
 
           <div className="top-actions">
-            <button className="btn btn-secondary" onClick={fetchAllData}>
-              <RefreshCw size={16} />
+            {/* Backend status indicator in top bar for visibility */}
+            <StatusDot
+              status={backendOnline ? 'online' : 'offline'}
+              label={backendOnline ? 'API Online' : 'API Offline'}
+            />
+            <motion.button
+              className="btn btn-secondary"
+              onClick={fetchAllData}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <RefreshCw size={16} className={loading ? 'spin-icon' : ''} />
               <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
-            </button>
-            <button className="btn btn-primary" onClick={() => setShowEnrollModal(true)}>
+            </motion.button>
+            <motion.button
+              className="btn btn-primary"
+              onClick={() => setShowEnrollModal(true)}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
               <Plus size={16} />
               <span>Pre-register Device</span>
-            </button>
-            <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+            </motion.button>
+            <motion.button
+              className="btn btn-primary"
+              onClick={() => setShowUploadModal(true)}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
               <Upload size={16} />
               <span>Upload Policy</span>
-            </button>
+            </motion.button>
           </div>
-        </header>
+        </motion.header>
 
-        {renderContent()}
+        <AnimatePresence mode="wait">
+          <motion.div key={activeTab} {...fadeUp}>
+            {renderContent()}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <nav className="mobile-bottom-nav glass-surface">
@@ -767,81 +1074,91 @@ function Dashboard({ onLogout }) {
         })}
       </nav>
 
-      {showEnrollModal ? (
-        <div className="modal-overlay">
-          <div className="modal glass-surface">
-            <h3>Pre-register Device</h3>
-            <p className="sub-text">
-              Register the device record first. The agent will use this enrollment number and token later to enroll itself.
-            </p>
-            <form className="stack-form" onSubmit={handleEnrollDevice}>
-              <input
-                className="input-field"
-                placeholder="Enrollment number"
-                value={enrollForm.enrollment_number}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_number: e.target.value }))}
-                required
-              />
-              <input
-                className="input-field"
-                placeholder="Enrollment token"
-                value={enrollForm.enrollment_token}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_token: e.target.value }))}
-                required
-              />
-              <input
-                className="input-field"
-                placeholder="Pre-shared key"
-                value={enrollForm.pre_shared_key}
-                onChange={(e) => setEnrollForm((prev) => ({ ...prev, pre_shared_key: e.target.value }))}
-                required
-              />
-              <div className="modal-actions">
-                <button className="btn btn-secondary" type="button" onClick={() => setShowEnrollModal(false)}>
-                  Cancel
-                </button>
-                <button className="btn btn-primary" type="submit">Register</button>
-              </div>
-            </form>
+      {/* ── Modals ── */}
+      <ModalWrap show={showEnrollModal} onClose={() => setShowEnrollModal(false)}>
+        <h3>Pre-register Device</h3>
+        <p className="sub-text">
+          Register the device record first. The agent will use this enrollment number and token later to enroll itself.
+        </p>
+        <form className="stack-form" onSubmit={handleEnrollDevice}>
+          <input
+            className="input-field"
+            placeholder="Enrollment number"
+            value={enrollForm.enrollment_number}
+            onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_number: e.target.value }))}
+            required
+          />
+          <input
+            className="input-field"
+            placeholder="Enrollment token"
+            value={enrollForm.enrollment_token}
+            onChange={(e) => setEnrollForm((prev) => ({ ...prev, enrollment_token: e.target.value }))}
+            required
+          />
+          <input
+            className="input-field"
+            placeholder="Pre-shared key"
+            value={enrollForm.pre_shared_key}
+            onChange={(e) => setEnrollForm((prev) => ({ ...prev, pre_shared_key: e.target.value }))}
+            required
+          />
+          <div className="modal-actions">
+            <button className="btn btn-secondary" type="button" onClick={() => setShowEnrollModal(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" type="submit">Register</button>
           </div>
-        </div>
-      ) : null}
+        </form>
+      </ModalWrap>
 
-      {showUploadModal ? (
-        <div className="modal-overlay">
-          <div className="modal glass-surface">
-            <h3>Upload Policy JSON</h3>
-            <form className="stack-form" onSubmit={handleUploadPolicy}>
-              <input
-                className="input-field"
-                type="file"
-                accept="application/json,.json"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                required
-              />
-              <div className="modal-actions">
-                <button className="btn btn-secondary" type="button" onClick={() => setShowUploadModal(false)}>
-                  Cancel
-                </button>
-                <button className="btn btn-primary" type="submit">Upload</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {showUploadResultModal ? (
-        <div className="modal-overlay">
-          <div className="modal glass-surface">
-            {renderUploadSummary()}
-            <div className="modal-actions">
-              <button className="btn btn-primary" type="button" onClick={() => setShowUploadResultModal(false)}>
-                Close
-              </button>
+      <ModalWrap show={showUploadModal} onClose={() => setShowUploadModal(false)}>
+        <h3>Upload Policy JSON</h3>
+        <form className="stack-form" onSubmit={handleUploadPolicy}>
+          <div
+            className={`drop-zone ${dragActive ? 'active' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('policy-file-input')?.click()}
+          >
+            <div className="drop-zone-inner">
+              <span className="drop-zone-icon"><FileJson size={32} /></span>
+              <span className="drop-zone-text">
+                {uploadFile ? uploadFile.name : 'Drop JSON file here or click to browse'}
+              </span>
+              <span className="drop-zone-hint">Accepts .json policy files</span>
             </div>
           </div>
+          <input
+            id="policy-file-input"
+            className="input-field"
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            style={{ display: 'none' }}
+          />
+          {uploadFile && (
+            <div className="selected-file-chip">
+              <FileJson size={14} /> {uploadFile.name}
+            </div>
+          )}
+          <div className="modal-actions">
+            <button className="btn btn-secondary" type="button" onClick={() => { setShowUploadModal(false); setUploadFile(null); }}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" type="submit">Upload</button>
+          </div>
+        </form>
+      </ModalWrap>
+
+      <ModalWrap show={showUploadResultModal} onClose={() => setShowUploadResultModal(false)}>
+        {renderUploadSummary()}
+        <div className="modal-actions">
+          <button className="btn btn-primary" type="button" onClick={() => setShowUploadResultModal(false)}>
+            Close
+          </button>
         </div>
-      ) : null}
+      </ModalWrap>
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>

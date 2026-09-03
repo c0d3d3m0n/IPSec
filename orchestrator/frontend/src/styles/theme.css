@@ -1,32 +1,66 @@
+/* theme.css — Subtle Cyber Terminal Aesthetic for IPsec Vault */
+
 :root {
-  --bg-base: #0a0f1e;
-  --bg-secondary: #0d1528;
+  /* ── Backgrounds (Deep Carbon Slate & Tech Obsidian) ── */
+  --bg-base:        #080C0A;
+  --bg-secondary:   #0E1410;
+  --bg-surface:     #131B15;
 
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-bg-hover: rgba(255, 255, 255, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-blur: blur(16px);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  /* ── Glassmorphism (Subtle Cyber Glass with Depth) ── */
+  --glass-bg:       rgba(13, 20, 16, 0.72);
+  --glass-bg-hover: rgba(16, 185, 129, 0.06);
+  --glass-border:   rgba(16, 185, 129, 0.14);
+  --glass-blur:     blur(16px);
+  --glass-shadow:   0 8px 32px rgba(0, 0, 0, 0.7);
 
-  --accent-primary: #00d4ff;
-  --accent-secondary: #7b61ff;
-  --accent-success: #00ff9d;
-  --accent-danger: #ff4466;
-  --accent-warning: #ffb547;
+  /* ── Accent Palette (Refined Emerald & Muted Sage — Not Overpowering) ── */
+  --accent-primary:   #10B981;
+  --accent-secondary: #34D399;
+  --accent-success:   #10B981;
+  --accent-danger:    #F43F5E;
+  --accent-warning:   #F59E0B;
 
-  --glow-primary: 0 0 20px rgba(0, 212, 255, 0.3);
-  --glow-success: 0 0 20px rgba(0, 255, 157, 0.3);
-  --glow-danger: 0 0 20px rgba(255, 68, 102, 0.3);
+  /* ── Glow Effects (Soft, Delicate Ambiance) ── */
+  --glow-primary:   0 0 12px rgba(16, 185, 129, 0.2);
+  --glow-secondary: 0 0 12px rgba(52, 211, 153, 0.18);
+  --glow-success:   0 0 12px rgba(16, 185, 129, 0.2);
+  --glow-danger:    0 0 12px rgba(244, 63, 94, 0.22);
+  --glow-warning:   0 0 12px rgba(245, 158, 11, 0.22);
 
-  --text-primary: rgba(255, 255, 255, 0.92);
-  --text-secondary: rgba(255, 255, 255, 0.55);
-  --text-muted: rgba(255, 255, 255, 0.3);
+  /* ── Typography (Clean High-Contrast Terminal Monospace) ── */
+  --text-primary:   #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted:     #64748B;
 
-  --font-main: 'Inter', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-main: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
+  /* ── Radius (Precision Cybernetic Corners) ── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Gradient Presets (Subtle Emerald Depth) ── */
+  --gradient-primary: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  --gradient-danger:  linear-gradient(135deg, #F43F5E, #E11D48);
+
+  /* ── Trust Score Gradients ── */
+  --gradient-trust-low:  linear-gradient(90deg, #F43F5E, #FB7185);
+  --gradient-trust-mid:  linear-gradient(90deg, #F59E0B, #FBBF24);
+  --gradient-trust-high: linear-gradient(90deg, #10B981, #34D399);
+
+  /* ── Animation Timing ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 0.15s;
+  --duration-normal: 0.25s;
+  --duration-slow: 0.4s;
+
+  /* ── Spacing Scale ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 14px;
+  --space-lg: 20px;
+  --space-xl: 32px;
 }

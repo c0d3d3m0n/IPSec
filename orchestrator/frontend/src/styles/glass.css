@@ -1,0 +1,106 @@
+/* glass.css — Subtle Cyber Glassmorphism Utility Classes */
+
+/* ── Interactive glass card (hover effects) ── */
+.glass {
+  background: var(--glass-bg, rgba(13, 20, 16, 0.72));
+  backdrop-filter: var(--glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(16px));
+  border: 1px solid var(--glass-border, rgba(16, 185, 129, 0.14));
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text-primary, #F1F5F9);
+  box-shadow: var(--glass-shadow, 0 8px 32px rgba(0, 0, 0, 0.7)), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass:hover {
+  background: var(--glass-bg-hover, rgba(16, 185, 129, 0.06));
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: var(--glass-shadow), var(--glow-primary);
+  transform: translateY(-2px);
+}
+
+/* ── Static glass (no hover lift) ── */
+.glass-static {
+  background: var(--glass-bg, rgba(13, 20, 16, 0.72));
+  backdrop-filter: var(--glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(16px));
+  border: 1px solid var(--glass-border, rgba(16, 185, 129, 0.14));
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text-primary, #F1F5F9);
+  box-shadow: var(--glass-shadow, 0 8px 32px rgba(0, 0, 0, 0.7)), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Fallback for browsers without backdrop-filter ── */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass,
+  .glass-static,
+  .glass-surface {
+    background: #0D1410;
+  }
+}
+
+/* ── Section header separator ── */
+.glass-header {
+  border-bottom: 1px solid var(--glass-border, rgba(16, 185, 129, 0.14));
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Glass input field ── */
+.glass-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(10, 15, 12, 0.7);
+  border: 1px solid var(--glass-border, rgba(16, 185, 129, 0.14));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary, #F1F5F9);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.88rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--accent-primary, #10B981);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+  background: rgba(10, 15, 12, 0.9);
+}
+
+/* ── Glass badge chips ── */
+.glass-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.glass-badge-teal,
+.glass-badge-green {
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent-primary, #10B981);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.glass-badge-purple {
+  background: rgba(52, 211, 153, 0.08);
+  color: var(--accent-secondary, #34D399);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.glass-badge-red {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--accent-danger, #F43F5E);
+  border: 1px solid rgba(244, 63, 94, 0.28);
+}
+
+.glass-badge-amber {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-warning, #F59E0B);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}

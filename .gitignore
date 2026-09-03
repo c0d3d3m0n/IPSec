@@ -22,6 +22,8 @@ Thumbs.db
 
 # Keys & Secrets (SENSITIVE)
 keys/
+agent/certs/
+*.key
 .env*
 !.env.example
 
