@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" width="100%" height="100%">
+  <defs>
+    <linearGradient id="hzGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF" />
+      <stop offset="60%" stop-color="#5B54FA" />
+      <stop offset="100%" stop-color="#7B61FF" />
+    </linearGradient>
+
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+
+    <radialGradient id="hzPlate" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#12183B" />
+      <stop offset="70%" stop-color="#0A0F2E" />
+      <stop offset="100%" stop-color="#05081A" />
+    </radialGradient>
+
+    <filter id="hzGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Deep Obsidian Background -->
+  <rect width="720" height="180" rx="20" fill="#0A0F2E" />
+
+  <!-- ── ICON MARK (Left: Centered at 90, 90) ── -->
+  <g transform="translate(90, 90) scale(0.28)" style="transform-origin: 0 0;">
+    <!-- Radiating Traces -->
+    <g stroke="url(#hzGrad)" stroke-width="6" fill="none" opacity="0.85">
+      <path d="M 0,-204 L 0,-250" />
+      <path d="M -20,-198 L -50,-228 L -90,-228" />
+      <path d="M 20,-198 L 50,-228 L 90,-228" />
+
+      <path d="M 177,-102 L 210,-120" />
+      <path d="M 170,-84 L 205,-65 L 240,-65" />
+
+      <path d="M 177,102 L 210,120" />
+      <path d="M 170,84 L 205,65 L 240,65" />
+
+      <path d="M 0,204 L 0,250" />
+      <path d="M -20,198 L -50,228 L -90,228" />
+      <path d="M 20,198 L 50,228 L 90,228" />
+
+      <path d="M -177,102 L -210,120" />
+      <path d="M -170,84 L -205,65 L -240,65" />
+
+      <path d="M -177,-102 L -210,-120" />
+      <path d="M -170,-84 L -205,-65 L -240,-65" />
+    </g>
+
+    <!-- Radiating Terminal Nodes -->
+    <g fill="#00FF9D">
+      <circle cx="0" cy="-250" r="10" />
+      <circle cx="-90" cy="-228" r="8" />
+      <circle cx="90" cy="-228" r="8" />
+
+      <circle cx="210" cy="-120" r="10" />
+      <circle cx="240" cy="-65" r="8" />
+
+      <circle cx="210" cy="120" r="10" />
+      <circle cx="240" cy="65" r="8" />
+
+      <circle cx="0" cy="250" r="10" />
+      <circle cx="-90" cy="228" r="8" />
+      <circle cx="90" cy="228" r="8" />
+
+      <circle cx="-210" cy="120" r="10" />
+      <circle cx="-240" cy="65" r="8" />
+
+      <circle cx="-210" cy="-120" r="10" />
+      <circle cx="-240" cy="-65" r="8" />
+    </g>
+
+    <!-- Outer Hexagon -->
+    <polygon points="0,-204 177,-102 177,102 0,204 -177,102 -177,-102"
+             fill="url(#hzPlate)"
+             stroke="url(#hzGrad)"
+             stroke-width="12"
+             stroke-linejoin="round"
+             filter="url(#hzGlow)" />
+
+    <!-- Hexagon Vertex Nodes -->
+    <g fill="#00D4FF">
+      <circle cx="0" cy="-204" r="16" stroke="#0A0F2E" stroke-width="6" />
+      <circle cx="177" cy="-102" r="16" stroke="#0A0F2E" stroke-width="6" />
+      <circle cx="177" cy="102" r="16" stroke="#0A0F2E" stroke-width="6" />
+      <circle cx="0" cy="204" r="16" stroke="#0A0F2E" stroke-width="6" />
+      <circle cx="-177" cy="102" r="16" stroke="#0A0F2E" stroke-width="6" />
+      <circle cx="-177" cy="-102" r="16" stroke="#0A0F2E" stroke-width="6" />
+    </g>
+    <g fill="#00FF9D">
+      <circle cx="0" cy="-204" r="7" />
+      <circle cx="177" cy="-102" r="7" />
+      <circle cx="177" cy="102" r="7" />
+      <circle cx="0" cy="204" r="7" />
+      <circle cx="-177" cy="102" r="7" />
+      <circle cx="-177" cy="-102" r="7" />
+    </g>
+
+    <!-- Concentric Tunnel Rings -->
+    <polygon points="0,-148 128,-74 128,74 0,148 -128,74 -128,-74"
+             fill="#070C24"
+             stroke="url(#hzGrad)"
+             stroke-width="8"
+             stroke-linejoin="round" />
+
+    <polygon points="0,-100 86,-50 86,50 0,100 -86,50 -86,-50"
+             fill="#05081A"
+             stroke="url(#hzGrad)"
+             stroke-width="6"
+             stroke-linejoin="round" />
+
+    <!-- Crosshair Reticle -->
+    <circle cx="0" cy="0" r="54" fill="none" stroke="#00D4FF" stroke-width="4" stroke-dasharray="14 10" />
+    <g stroke="#00FF9D" stroke-width="5" stroke-linecap="round">
+      <line x1="0" y1="-64" x2="0" y2="-36" />
+      <line x1="0" y1="36" x2="0" y2="64" />
+      <line x1="-64" y1="0" x2="-36" y2="0" />
+      <line x1="36" y1="0" x2="64" y2="0" />
+    </g>
+
+    <!-- Keyhole -->
+    <circle cx="0" cy="-12" r="16" fill="url(#hzGrad)" />
+    <polygon points="-9,-6 9,-6 14,24 -14,24" fill="url(#hzGrad)" />
+    <circle cx="0" cy="-12" r="6" fill="#00FF9D" />
+  </g>
+
+  <!-- ── TYPOGRAPHY LOCKUP (Right) ── -->
+  <g transform="translate(186, 0)">
+    <!-- Main Wordmark -->
+    <text x="0" y="98" font-family="'JetBrains Mono', 'Fira Code', 'Inter', monospace" font-size="52" letter-spacing="-0.02em">
+      <!-- IPsec in Bold White/Silver -->
+      <tspan fill="url(#textGrad)" font-weight="800">IPsec</tspan>
+      <tspan dx="12" fill="#00D4FF" font-weight="300">Vault</tspan>
+    </text>
+
+    <!-- Tagline -->
+    <text x="4" y="132" font-family="'JetBrains Mono', monospace" font-size="13.5" font-weight="500" fill="#00FF9D" letter-spacing="0.22em" opacity="0.9">
+      ZERO TRUST · POLICY ENFORCEMENT · EVERY DEVICE
+    </text>
+  </g>
+</svg>

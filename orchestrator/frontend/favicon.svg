@@ -1,14 +1,48 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="g" x1="0" x2="1">
-      <stop offset="0" stop-color="#0f172a"/>
-      <stop offset="1" stop-color="#06b6d4"/>
+    <linearGradient id="favGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#34D399" />
     </linearGradient>
+    <filter id="fGlow">
+      <feGaussianBlur stdDeviation="1.2" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="64" height="64" rx="10" fill="url(#g)"/>
-  <g fill="#fff">
-    <rect x="18" y="14" width="28" height="18" rx="3"/>
-    <circle cx="32" cy="24" r="3" fill="#0f172a"/>
-    <path d="M20 36h24v6a6 6 0 0 1-6 6H26a6 6 0 0 1-6-6v-6z" fill-opacity="0.9"/>
+
+  <rect width="64" height="64" rx="14" fill="#080C0A" />
+
+  <g filter="url(#fGlow)">
+    <!-- Outer Shield & Inward Branch -->
+    <path d="M 16,25 
+             C 16,38 23,48 32,53 
+             C 41,48 48,38 48,25 
+             C 44,25 39,22 37,20 
+             L 33,30" 
+          fill="none" 
+          stroke="url(#favGrad)" 
+          stroke-width="3.8" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+
+    <!-- Top Connection Arm -->
+    <path d="M 16,25 
+             C 19,27 26,26 30,20" 
+          fill="none" 
+          stroke="url(#favGrad)" 
+          stroke-width="3.8" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+
+    <!-- Top Node -->
+    <circle cx="32" cy="17" r="4.6" fill="url(#favGrad)" />
+    <circle cx="32" cy="17" r="2.1" fill="#080C0A" />
+
+    <!-- Center Node -->
+    <circle cx="32" cy="34" r="4.6" fill="url(#favGrad)" />
+    <circle cx="32" cy="34" r="2.1" fill="#080C0A" />
   </g>
 </svg>
