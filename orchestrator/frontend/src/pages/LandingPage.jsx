@@ -86,9 +86,9 @@ const FEATURE_FLASHCARDS = [
     id: 'crypto-agility',
     tag: 'MODERN CIPHERS',
     title: 'Cryptographic Suite Agility',
-    desc: 'Enforce state-of-the-art AEAD algorithms with forward secrecy. ChaCha20-Poly1305 and AES-256-GCM combined with Curve25519 & ECP-384 Diffie-Hellman groups for maximum speed & security.',
+    desc: 'Enforce enterprise-grade AEAD and CBC encryption algorithms with perfect forward secrecy. Cross-platform support for AES-256-GCM, AES-CBC-256, SHA-512 integrity, and ECP-384 / DH14 key exchange.',
     icon: Lock,
-    chips: ['ChaCha20-Poly1305', 'AES-256-GCM', 'Curve25519 (DH 31)', 'PFS Rekeying'],
+    chips: ['AES-256-GCM', 'AES-CBC-256', 'SHA-512', 'ECP-384', 'DH14'],
   },
 ];
 
@@ -120,14 +120,44 @@ const PIPELINE_STEPS = [
   },
 ];
 
+/* Endpoint Agent Enrollment Steps */
+const ENROLLMENT_STEPS = {
+  linux: {
+    label: 'Linux',
+    title: 'agent@linux-node:~/IPSec/agent$',
+    prompt: '$',
+    lines: [
+      'git clone https://github.com/c0d3d3m0n/IPSec',
+      'cd IPSec/agent',
+      'python3 -m venv .venv && source .venv/bin/activate',
+      'pip install -r requirements.txt',
+      'sudo -E python3 main.py',
+    ],
+  },
+  windows: {
+    label: 'Windows (Admin PowerShell)',
+    title: 'PS C:\\IPSec\\agent>',
+    prompt: '>',
+    lines: [
+      'git clone https://github.com/c0d3d3m0n/IPSec',
+      'cd IPSec\\agent',
+      'python -m venv .venv',
+      '.venv\\Scripts\\Activate.ps1',
+      'pip install -r requirements.txt',
+      'python main.py',
+    ],
+  },
+};
+
 function LandingPage() {
   const navigate = useNavigate();
+  const [enrollmentOs, setEnrollmentOs] = useState('linux');
   const [copied, setCopied] = useState(false);
 
-  const installCommand = 'curl -sSL https://api.ipsecvault.tech/enroll | bash -s -- --orchestrator=mesh.ipsecvault.tech';
+  const activeSteps = ENROLLMENT_STEPS[enrollmentOs];
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(installCommand);
+    navigator.clipboard.writeText(activeSteps.lines.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
@@ -371,24 +401,52 @@ function LandingPage() {
       <section className="landing-section">
         <div className="terminal-card glass-surface">
           <div className="terminal-header">
-            <div className="terminal-dots">
-              <span className="terminal-dot dot-red" />
-              <span className="terminal-dot dot-amber" />
-              <span className="terminal-dot dot-green" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="terminal-dots">
+                <span className="terminal-dot dot-red" />
+                <span className="terminal-dot dot-amber" />
+                <span className="terminal-dot dot-green" />
+              </div>
+              <span className="terminal-title">{activeSteps.title}</span>
             </div>
-            <span className="terminal-title">quickstart@ipsecvault-node:~</span>
-            <span className="chip os-linux" style={{ fontSize: '0.65rem' }}>mTLS v1.3</span>
+            <div className="terminal-tabs">
+              <button
+                type="button"
+                className={`terminal-tab-btn ${enrollmentOs === 'linux' ? 'active' : ''}`}
+                onClick={() => setEnrollmentOs('linux')}
+              >
+                Linux
+              </button>
+              <button
+                type="button"
+                className={`terminal-tab-btn ${enrollmentOs === 'windows' ? 'active' : ''}`}
+                onClick={() => setEnrollmentOs('windows')}
+              >
+                Windows (Admin PowerShell)
+              </button>
+            </div>
           </div>
           <div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '10px', fontFamily: 'var(--font-mono)' }}>
-              Enroll any fleet device into the zero-trust mesh in seconds:
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '12px', fontFamily: 'var(--font-mono)' }}>
+              Deploy and enroll the native endpoint daemon onto your node:
             </p>
-            <div className="terminal-code-row">
-              <code className="terminal-command">{installCommand}</code>
-              <button className="copy-btn" onClick={handleCopy} type="button">
+            <div className="terminal-multiline-wrap">
+              <button className="copy-btn terminal-copy-float" onClick={handleCopy} type="button">
                 {copied ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
+                <span>{copied ? 'Copied' : 'Copy All'}</span>
               </button>
+              <pre className="terminal-code-block">
+                {activeSteps.lines.map((line, idx) => (
+                  <div key={idx} className="terminal-code-line">
+                    <span className="terminal-prompt-sym">{activeSteps.prompt}</span>
+                    <span className="terminal-code-text">{line}</span>
+                  </div>
+                ))}
+              </pre>
+            </div>
+            <div className="terminal-meta-footer">
+              <div>Orchestrator URL: <span className="mono-text" style={{ color: 'var(--accent-primary)' }}>https://api.ipsecvault.tech</span></div>
+              <div>Web Console: <span className="mono-text" style={{ color: 'var(--accent-primary)' }}>https://www.ipsecvault.tech</span></div>
             </div>
           </div>
         </div>
@@ -407,10 +465,10 @@ function LandingPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '16px' }}>
             <span className="chip os-linux">RFC 7296 (IKEv2)</span>
             <span className="chip os-linux">RFC 4303 (ESP)</span>
-            <span className="chip os-windows">NIST SP 800-77 Rev 1</span>
-            <span className="chip os-windows">FIPS 140-3 Ready</span>
-            <span className="chip os-macos">Zero Trust NIST SP 800-207</span>
-            <span className="chip os-unknown">mTLS RFC 8446</span>
+            <span className="chip os-windows">NIST SP 800-207</span>
+            <span className="chip os-windows">NIST SP 800-77</span>
+            <span className="chip os-macos">AES-256-GCM</span>
+            <span className="chip os-unknown">SHA-512</span>
           </div>
         </div>
       </section>
